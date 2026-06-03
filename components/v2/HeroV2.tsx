@@ -2,6 +2,7 @@ import AsciiHero from "@/components/ascii-hero";
 import { BtnV2, Label } from "./ui";
 import { TracesPanel } from "./mocks";
 import { links } from "@/lib/links";
+import { ACCENT, ACCENT_DIM } from "./theme";
 
 export default function HeroV2() {
   return (
@@ -36,8 +37,8 @@ export default function HeroV2() {
               variant="flowfield"
               cell={9}
               radius={110}
-              color="#ff4a00"
-              dim="rgba(255,74,0,0.16)"
+              color={ACCENT}
+              dim={ACCENT_DIM}
             />
           </div>
         </div>

@@ -13,7 +13,7 @@ const LINKS: { label: string; href: string; external?: boolean }[] = [
 
 export default function FooterV2() {
   return (
-    <section className="bg-[#ff4a00] text-white">
+    <section className="bg-[var(--v2-accent)] text-white">
       <div className="flex flex-col items-center px-6 py-32 text-center sm:px-10">
         <h2 className="max-w-3xl text-5xl font-medium leading-[1.05] tracking-tight sm:text-6xl">
           Turn log chaos into incident clarity

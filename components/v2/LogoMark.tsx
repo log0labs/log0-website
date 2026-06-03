@@ -3,9 +3,11 @@
   one solid incident dot — "many logs → one incident". One color, scales to a
   16px favicon.
 */
+import { ACCENT } from "./theme";
+
 export function LogoMark({
   className = "",
-  color = "#ff4a00",
+  color = ACCENT,
 }: {
   className?: string;
   color?: string;

@@ -1,6 +1,7 @@
 import AsciiHero from "@/components/ascii-hero";
 import { Label } from "./ui";
 import { SignalsPanel, SpanTreePanel } from "./mocks";
+import { ACCENT, ACCENT_DIM } from "./theme";
 
 export default function SolutionV2() {
   return (
@@ -11,7 +12,7 @@ export default function SolutionV2() {
           <Label>Solution</Label>
           <h2 className="mt-8 text-4xl font-medium leading-tight tracking-tight text-[#1b1815] sm:text-5xl">
             log0 collapses thousands of duplicate errors into one{" "}
-            <span className="text-[#ff4a00]">actionable incident</span>.
+            <span className="text-[var(--v2-accent)]">actionable incident</span>.
           </h2>
         </div>
         <div className="pointer-events-none relative min-h-[260px] lg:min-h-full">
@@ -20,8 +21,9 @@ export default function SolutionV2() {
               variant="phasespace"
               cell={9}
               radius={110}
-              color="#ff4a00"
-              dim="rgba(255,74,0,0.16)"
+              interactive={false}
+              color={ACCENT}
+              dim={ACCENT_DIM}
             />
           </div>
         </div>

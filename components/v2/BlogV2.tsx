@@ -1,5 +1,6 @@
 import { Label } from "./ui";
 import { BlogCard } from "./mocks";
+import { ACCENT } from "./theme";
 
 const POSTS = [
   {
@@ -7,7 +8,7 @@ const POSTS = [
     title: "Why fingerprinting belongs in normalization, not clustering.",
   },
   {
-    gradient: "linear-gradient(135deg,#ff7a3c,#ff4a00 45%,#7c4dff)",
+    gradient: `linear-gradient(135deg,#ff7a3c,${ACCENT} 45%,#7c4dff)`,
     title: "Multi-tenant from day one: partitioning Kafka by tenant.",
   },
 ];

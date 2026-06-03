@@ -1,6 +1,7 @@
 import React from "react";
 import AsciiHero from "@/components/ascii-hero";
 import { LogoMark } from "./LogoMark";
+import { ACCENT, ACCENT_DIM } from "./theme";
 
 /*
   Shared primitives for the /v2 landing clone (Bento-style, light theme).
@@ -12,7 +13,7 @@ export const V2 = {
   panel: "#161310", // near-black warm dashboard panels
   text: "#1b1815", // near-black warm text
   muted: "#9a9089", // muted gray subtext
-  orange: "#ff4a00", // primary accent
+  orange: ACCENT, // primary accent (from theme.ts)
   rail: "rgba(0,0,0,0.08)", // hairline grid rails / borders
 } as const;
 
@@ -20,7 +21,7 @@ export const V2 = {
 export function Label({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[#ff4a00]">
+      <span className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[var(--v2-accent)]">
         {children}
       </span>
       <span
@@ -32,8 +33,8 @@ export function Label({ children }: { children: React.ReactNode }) {
           cell={6}
           speed={0.8}
           interactive={false}
-          color="#ff4a00"
-          dim="rgba(255,74,0,0.3)"
+          color={ACCENT}
+          dim={ACCENT_DIM}
         />
       </span>
     </div>
@@ -54,7 +55,7 @@ export function BtnV2({
   ...props
 }: BtnProps) {
   const styles = {
-    primary: "bg-[#ff4a00] text-white hover:bg-[#e64400]",
+    primary: "bg-[var(--v2-accent)] text-white hover:bg-[var(--v2-accent-hover)]",
     secondary:
       "bg-transparent text-[#1b1815] border border-black/15 hover:bg-black/5",
     light: "bg-white text-[#1b1815] hover:bg-white/90",

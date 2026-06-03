@@ -39,7 +39,7 @@ export default function FeaturesV2() {
       <div className="mt-16 grid gap-x-12 gap-y-16 lg:grid-cols-2">
         {ITEMS.map((it) => (
           <div key={it.n}>
-            <div className="font-mono text-xl font-semibold text-[#ff4a00]">
+            <div className="font-mono text-xl font-semibold text-[var(--v2-accent)]">
               {it.n}
             </div>
             <h3 className="mt-3 text-2xl font-medium text-[#1b1815]">

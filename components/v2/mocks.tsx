@@ -10,7 +10,7 @@ const tag = (text: string, tone: "gray" | "green" | "orange" | "purple") => {
   const tones = {
     gray: "bg-black/5 text-black/60",
     green: "bg-emerald-500/15 text-emerald-700",
-    orange: "bg-[#ff4a00]/12 text-[#ff4a00]",
+    orange: "bg-[color-mix(in_srgb,var(--v2-accent)_12%,transparent)] text-[var(--v2-accent)]",
     purple: "bg-violet-500/15 text-violet-700",
   };
   return (
@@ -40,7 +40,7 @@ export function TracesPanel() {
           {["Logs", "Traces", "Sessions", "Spans", "Nudges"].map((t, i) => (
             <span
               key={t}
-              className={i === 1 ? "border-b-2 border-[#ff4a00] pb-1 text-white" : "text-white/45"}
+              className={i === 1 ? "border-b-2 border-[var(--v2-accent)] pb-1 text-white" : "text-white/45"}
             >
               {t}
             </span>
@@ -51,7 +51,7 @@ export function TracesPanel() {
         <span className="rounded border border-white/10 px-2 py-1">By count ▾</span>
         <span className="rounded border border-white/10 px-2 py-1">7 Apr – Now</span>
         <span className="ml-2 text-white/80">216,440 total traces</span>
-        <span className="text-[#ff4a00]">■ 8,304 error</span>
+        <span className="text-[var(--v2-accent)]">■ 8,304 error</span>
         <span className="text-violet-400">■ 12,214 nudged</span>
         <span className="ml-auto rounded border border-white/10 px-2 py-1">Hourly ▾</span>
       </div>
@@ -68,7 +68,7 @@ export function TracesPanel() {
       <div className="mt-3 divide-y divide-white/5 text-xs">
         {rows.map((r) => (
           <div key={r[0]} className="flex items-center gap-3 px-5 py-2.5">
-            <span className="size-1.5 rounded-full bg-[#ff4a00]" />
+            <span className="size-1.5 rounded-full bg-[var(--v2-accent)]" />
             <span className="w-24 text-white/60">{r[0]}</span>
             <span className="flex-1 truncate text-white/85">{r[1]}</span>
             <span className="hidden w-32 text-white/50 sm:block">{r[2]}</span>
@@ -93,7 +93,7 @@ export function ChatMock() {
       {[0.95, 0.7, 0.45].map((s, i) => (
         <div
           key={i}
-          className="absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#ff4a00]"
+          className="absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--v2-accent)]"
           style={{ width: `${s * 60}%`, height: `${s * 60}%`, opacity: 0.05 + i * 0.04 }}
         />
       ))}
@@ -122,8 +122,8 @@ export function ChatMock() {
               }}
             >
               <div className="flex items-center gap-2 font-mono text-[11px]">
-                <span className="size-1.5 rounded-full bg-[#ff4a00]" />
-                <span className="font-semibold text-[#ff4a00]">ERROR</span>
+                <span className="size-1.5 rounded-full bg-[var(--v2-accent)]" />
+                <span className="font-semibold text-[var(--v2-accent)]">ERROR</span>
                 <span className="text-black/45">payment-service</span>
               </div>
               <div className="mt-1 truncate font-mono text-[11px] text-black/70">
@@ -134,7 +134,7 @@ export function ChatMock() {
         </div>
 
         {/* duplicate counter */}
-        <div className="mt-10 inline-flex items-center gap-1 rounded-md bg-[#ff4a00]/12 px-2 py-1 font-mono text-xs font-semibold text-[#ff4a00]">
+        <div className="mt-10 inline-flex items-center gap-1 rounded-md bg-[color-mix(in_srgb,var(--v2-accent)_12%,transparent)] px-2 py-1 font-mono text-xs font-semibold text-[var(--v2-accent)]">
           × 10,247 occurrences
         </div>
 
@@ -160,10 +160,10 @@ export function SignalsPanel() {
     <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-white/85">
       <div className="flex items-center gap-4 border-b border-white/10 pb-3 text-sm">
         <span className="flex items-center gap-1.5 font-medium">
-          <span className="text-[#ff4a00]">✶</span> Clustering
+          <span className="text-[var(--v2-accent)]">✶</span> Clustering
         </span>
         {["By fingerprint", "Window", "Errors"].map((t, i) => (
-          <span key={t} className={i === 0 ? "border-b-2 border-[#ff4a00] pb-2 text-white" : "text-white/45"}>
+          <span key={t} className={i === 0 ? "border-b-2 border-[var(--v2-accent)] pb-2 text-white" : "text-white/45"}>
             {t}
           </span>
         ))}
@@ -171,7 +171,7 @@ export function SignalsPanel() {
       <div className="flex items-center gap-2 py-3 text-xs text-white/60">
         <span className="rounded border border-white/10 px-2 py-1 font-mono">fp a3f9c1…</span>
         <span className="rounded border border-white/10 px-2 py-1">5-min window ▾</span>
-        <span className="ml-auto font-mono text-[#ff4a00]">× 10,247</span>
+        <span className="ml-auto font-mono text-[var(--v2-accent)]">× 10,247</span>
       </div>
       <div className="relative flex h-24 items-end gap-1">
         {/* threshold line */}
@@ -186,12 +186,12 @@ export function SignalsPanel() {
         {bars.map((h, i) => (
           <div
             key={i}
-            className={`flex-1 rounded-sm ${h >= threshold ? "bg-[#ff4a00]" : "bg-white/15"}`}
+            className={`flex-1 rounded-sm ${h >= threshold ? "bg-[var(--v2-accent)]" : "bg-white/15"}`}
             style={{ height: `${h}%` }}
           />
         ))}
       </div>
-      <div className="mt-2 text-right text-[11px] text-[#ff4a00]">
+      <div className="mt-2 text-right text-[11px] text-[var(--v2-accent)]">
         ▲ incident fired
       </div>
     </div>
@@ -223,7 +223,7 @@ export function SpanTreePanel() {
             </span>
             <div className="relative h-2 flex-1 rounded bg-white/10">
               <div
-                className={`absolute top-0 h-2 rounded ${err ? "bg-red-500" : "bg-[#ff4a00]"}`}
+                className={`absolute top-0 h-2 rounded ${err ? "bg-red-500" : "bg-[var(--v2-accent)]"}`}
                 style={{ left: `${off}%`, width: `${w}%` }}
               />
             </div>
@@ -322,7 +322,7 @@ export function BookPanel() {
               <div className="space-y-1 border-l border-black/10 pl-2.5">
                 {c.trail.map((t) => (
                   <div key={t} className="flex items-center gap-1.5 font-mono text-[10px] text-black/45">
-                    <span className="size-1 rounded-full bg-[#ff4a00]" />
+                    <span className="size-1 rounded-full bg-[var(--v2-accent)]" />
                     {t}
                   </div>
                 ))}
@@ -340,27 +340,27 @@ export function EvalPanel() {
   return (
     <div className="rounded-xl border border-black/10 bg-white p-4">
       <div className="flex items-center gap-2 border-b border-black/10 pb-3">
-        <span className="text-[#ff4a00]">✶</span>
+        <span className="text-[var(--v2-accent)]">✶</span>
         <span className="text-[13px] font-medium text-[#1b1815]">AI summary</span>
         <span className="font-mono text-[11px] text-black/40">incident #4821 · HIGH</span>
       </div>
       <div className="mt-3 space-y-3 text-[12px] leading-relaxed">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-wide text-[#ff4a00]">What&apos;s failing</div>
+          <div className="font-mono text-[10px] uppercase tracking-wide text-[var(--v2-accent)]">What&apos;s failing</div>
           <p className="text-[#1b1815]">
             payment-service throws NullPointerException in OrderMapper.map() on a
             null customerId — 10,247 times in 5 min.
           </p>
         </div>
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-wide text-[#ff4a00]">Likely cause</div>
+          <div className="font-mono text-[10px] uppercase tracking-wide text-[var(--v2-accent)]">Likely cause</div>
           <p className="text-[#1b1815]">
             checkout-service v2.15.0 began emitting orders without customerId
             right before the spike.
           </p>
         </div>
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-wide text-[#ff4a00]">Suggested next steps</div>
+          <div className="font-mono text-[10px] uppercase tracking-wide text-[var(--v2-accent)]">Suggested next steps</div>
           <p className="text-[#1b1815]">
             Roll back checkout v2.15.0, add a null-guard in OrderMapper, validate
             customerId at ingestion.
@@ -382,14 +382,14 @@ export function VersionPanel() {
         <span className="font-medium text-[#1b1815]"># incidents</span>
       </div>
       <div className="mt-3 flex gap-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-[#ff4a00] text-sm text-white">l0</span>
+        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-[var(--v2-accent)] text-sm text-white">l0</span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-semibold text-[#1b1815]">log0</span>
-            <span className="rounded bg-[#ff4a00]/12 px-1 py-0.5 text-[10px] font-medium text-[#ff4a00]">APP</span>
+            <span className="rounded bg-[color-mix(in_srgb,var(--v2-accent)_12%,transparent)] px-1 py-0.5 text-[10px] font-medium text-[var(--v2-accent)]">APP</span>
             <span className="text-[11px] text-black/35">now</span>
           </div>
-          <div className="mt-1 rounded-lg border border-black/10 border-l-2 border-l-[#ff4a00] bg-black/[0.02] p-3">
+          <div className="mt-1 rounded-lg border border-black/10 border-l-2 border-l-[var(--v2-accent)] bg-black/[0.02] p-3">
             <div className="text-[12px] font-medium text-[#1b1815]">
               🚨 HIGH · payment-service
             </div>
@@ -397,7 +397,7 @@ export function VersionPanel() {
               NullPointerException · OrderMapper.map() — 10,247 occurrences in 5m.
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="rounded-md bg-[#ff4a00] px-2.5 py-1 text-[11px] font-medium text-white">
+              <span className="rounded-md bg-[var(--v2-accent)] px-2.5 py-1 text-[11px] font-medium text-white">
                 Assign engineer ▾
               </span>
               <span className="rounded-md border border-black/15 px-2.5 py-1 text-[11px] text-[#1b1815]">View logs</span>
@@ -422,7 +422,7 @@ export function BlogCard({ gradient, title }: { gradient: string; title: string 
         className="aspect-[16/9] w-full rounded-xl"
         style={{ background: gradient }}
       />
-      <h3 className="mt-4 text-xl font-medium text-[#1b1815] group-hover:text-[#ff4a00]">
+      <h3 className="mt-4 text-xl font-medium text-[#1b1815] group-hover:text-[var(--v2-accent)]">
         {title}
       </h3>
     </a>
