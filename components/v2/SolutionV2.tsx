@@ -31,7 +31,7 @@ export default function SolutionV2() {
 
       {/* dark split: two product columns */}
       <div className="grid gap-px bg-black/10 lg:grid-cols-2">
-        <div className="flex flex-col bg-[#161310] px-6 py-12 sm:px-10">
+        <div className="flex min-w-0 flex-col bg-[#161310] px-6 py-12 sm:px-10">
           <h3 className="text-lg text-white/55">Fingerprint &amp; cluster</h3>
           <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white">
             Deterministic SHA-256 fingerprinting normalizes every log and
@@ -43,7 +43,7 @@ export default function SolutionV2() {
             <SignalsPanel />
           </div>
         </div>
-        <div className="flex flex-col bg-[#161310] px-6 py-12 sm:px-10">
+        <div className="flex min-w-0 flex-col bg-[#161310] px-6 py-12 sm:px-10">
           <h3 className="text-lg text-white/55">Every span, captured</h3>
           <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white">
             OpenTelemetry-ready: a traceId rides on every normalized log. Jump

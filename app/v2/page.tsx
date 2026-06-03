@@ -12,7 +12,7 @@ import FooterV2 from "@/components/v2/FooterV2";
 export default function V2Page() {
   return (
     <div
-      className="min-h-screen bg-[#f4f1ea] text-[#1b1815]"
+      className="min-h-screen overflow-x-hidden bg-[#f4f1ea] text-[#1b1815]"
       style={
         {
           "--v2-accent": ACCENT,

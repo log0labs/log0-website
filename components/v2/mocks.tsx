@@ -32,30 +32,30 @@ export function TracesPanel() {
   ];
   return (
     <div className="overflow-hidden rounded-t-2xl bg-[#161310] text-white/90">
-      <div className="flex items-center gap-4 border-b border-white/10 px-5 py-3">
-        <span className="rounded-md border border-white/15 px-2 py-1 text-xs text-white/70">
+      <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3 sm:gap-4 sm:px-5">
+        <span className="shrink-0 rounded-md border border-white/15 px-2 py-1 text-xs text-white/70">
           incidents-prod ▾
         </span>
-        <div className="flex items-center gap-5 text-sm">
+        <div className="flex items-center gap-4 text-sm sm:gap-5">
           {["Logs", "Traces", "Sessions", "Spans", "Nudges"].map((t, i) => (
             <span
               key={t}
-              className={i === 1 ? "border-b-2 border-[var(--v2-accent)] pb-1 text-white" : "text-white/45"}
+              className={`${i > 2 ? "hidden sm:inline" : ""} ${i === 1 ? "border-b-2 border-[var(--v2-accent)] pb-1 text-white" : "text-white/45"}`}
             >
               {t}
             </span>
           ))}
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 px-5 py-3 text-xs text-white/60">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3 text-xs text-white/60 sm:px-5">
         <span className="rounded border border-white/10 px-2 py-1">By count ▾</span>
         <span className="rounded border border-white/10 px-2 py-1">7 Apr – Now</span>
         <span className="ml-2 text-white/80">216,440 total traces</span>
         <span className="text-[var(--v2-accent)]">■ 8,304 error</span>
-        <span className="text-violet-400">■ 12,214 nudged</span>
-        <span className="ml-auto rounded border border-white/10 px-2 py-1">Hourly ▾</span>
+        <span className="hidden text-violet-400 sm:inline">■ 12,214 nudged</span>
+        <span className="ml-auto hidden rounded border border-white/10 px-2 py-1 sm:inline">Hourly ▾</span>
       </div>
-      <div className="flex h-28 items-end gap-[3px] px-5">
+      <div className="flex h-28 items-end gap-[3px] px-4 sm:px-5">
         {Array.from({ length: 64 }).map((_, i) => {
           const h = 20 + ((i * 37) % 70);
           return (
@@ -67,15 +67,15 @@ export function TracesPanel() {
       </div>
       <div className="mt-3 divide-y divide-white/5 text-xs">
         {rows.map((r) => (
-          <div key={r[0]} className="flex items-center gap-3 px-5 py-2.5">
-            <span className="size-1.5 rounded-full bg-[var(--v2-accent)]" />
-            <span className="w-24 text-white/60">{r[0]}</span>
-            <span className="flex-1 truncate text-white/85">{r[1]}</span>
-            <span className="hidden w-32 text-white/50 sm:block">{r[2]}</span>
-            <span className="w-12 text-white/50">{r[3]}</span>
-            <span className="w-12 text-white/50">{r[4]}</span>
-            {tag(r[5] as string, "gray")}
-            <span className="w-14 text-right text-emerald-400">{r[6]}%</span>
+          <div key={r[0]} className="flex items-center gap-2 px-4 py-2.5 sm:gap-3 sm:px-5">
+            <span className="size-1.5 shrink-0 rounded-full bg-[var(--v2-accent)]" />
+            <span className="hidden w-24 shrink-0 text-white/60 sm:block">{r[0]}</span>
+            <span className="min-w-0 flex-1 truncate text-white/85">{r[1]}</span>
+            <span className="hidden w-32 shrink-0 text-white/50 lg:block">{r[2]}</span>
+            <span className="hidden w-12 shrink-0 text-white/50 sm:block">{r[3]}</span>
+            <span className="hidden w-12 shrink-0 text-white/50 sm:block">{r[4]}</span>
+            <span className="shrink-0">{tag(r[5] as string, "gray")}</span>
+            <span className="w-12 shrink-0 text-right text-emerald-400 sm:w-14">{r[6]}%</span>
           </div>
         ))}
       </div>
@@ -158,7 +158,7 @@ export function SignalsPanel() {
   const bars = [12, 18, 15, 24, 30, 22, 38, 44, 36, 52, 60, 58, 72, 80, 68, 64];
   return (
     <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-white/85">
-      <div className="flex items-center gap-4 border-b border-white/10 pb-3 text-sm">
+      <div className="flex items-center gap-4 border-b border-white/10 pb-3 text-sm overflow-hidden">
         <span className="flex items-center gap-1.5 font-medium">
           <span className="text-[var(--v2-accent)]">✶</span> Clustering
         </span>
@@ -209,15 +209,15 @@ export function SpanTreePanel() {
     ["notify.slack.post", 87, 10, "180ms", false],
   ] as const;
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-      <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2 text-xs">
-        <span className="font-mono text-white/70">trace tr_8a31f · payment-service</span>
-        <span className="text-white/40">6 spans · 2.33s</span>
+    <div className="rounded-xl border border-white/10 bg-black/20 p-3 sm:p-4">
+      <div className="mb-3 flex items-center justify-between gap-2 border-b border-white/10 pb-2 text-xs">
+        <span className="min-w-0 truncate font-mono text-white/70">trace tr_8a31f · payment-service</span>
+        <span className="shrink-0 text-white/40">6 spans · 2.33s</span>
       </div>
       <div className="space-y-3">
         {spans.map(([name, off, w, dur, err]) => (
-          <div key={name as string} className="flex items-center gap-3 text-xs">
-            <span className={`w-36 truncate font-mono ${err ? "text-red-400" : "text-white/70"}`}>
+          <div key={name as string} className="flex items-center gap-2 text-xs sm:gap-3">
+            <span className={`w-28 shrink-0 truncate font-mono sm:w-36 ${err ? "text-red-400" : "text-white/70"}`}>
               {err && "● "}
               {name}
             </span>
@@ -227,7 +227,7 @@ export function SpanTreePanel() {
                 style={{ left: `${off}%`, width: `${w}%` }}
               />
             </div>
-            <span className={`w-12 text-right ${err ? "text-red-400" : "text-white/50"}`}>{dur}</span>
+            <span className={`w-12 shrink-0 text-right ${err ? "text-red-400" : "text-white/50"}`}>{dur}</span>
           </div>
         ))}
       </div>
@@ -246,7 +246,7 @@ export function SkillsPanel() {
     ["Deserialization failed: <field>", "fp e0b7c2 · normalization", "LOW", "gray", "×64"],
   ] as const;
   return (
-    <div className="rounded-xl border border-black/10 bg-white p-4">
+    <div className="rounded-xl border border-black/10 bg-white p-3 sm:p-4">
       <div className="flex items-center gap-4 border-b border-black/10 pb-3 text-sm">
         {["Fingerprints", "Templates", "Errors"].map((t, i) => (
           <span key={t} className={i === 0 ? "font-medium text-[#1b1815]" : "text-black/40"}>
@@ -259,13 +259,13 @@ export function SkillsPanel() {
       </div>
       <div className="divide-y divide-black/5">
         {rows.map(([title, sub, sev, tone, count]) => (
-          <div key={sub} className="flex items-center gap-3 py-2.5">
+          <div key={sub} className="flex items-center gap-2 py-2.5 sm:gap-3">
             <div className="min-w-0 flex-1">
-              <div className="truncate font-mono text-[12px] text-[#1b1815]">{title}</div>
-              <div className="font-mono text-[11px] text-black/40">{sub}</div>
+              <div className="truncate font-mono text-[11px] text-[#1b1815] sm:text-[12px]">{title}</div>
+              <div className="truncate font-mono text-[11px] text-black/40">{sub}</div>
             </div>
-            {tag(sev, tone as "gray")}
-            <span className="w-16 text-right font-mono text-[11px] text-black/55">{count}</span>
+            <span className="shrink-0">{tag(sev, tone as "gray")}</span>
+            <span className="w-12 shrink-0 text-right font-mono text-[11px] text-black/55 sm:w-16">{count}</span>
           </div>
         ))}
       </div>
@@ -296,14 +296,14 @@ export function BookPanel() {
     },
   ] as const;
   return (
-    <div className="rounded-xl border border-black/10 bg-white p-4">
+    <div className="rounded-xl border border-black/10 bg-white p-3 sm:p-4">
       <div className="flex items-center gap-4 border-b border-black/10 pb-3 text-sm">
         <span className="font-medium text-[#1b1815]">Open <span className="text-black/30">6</span></span>
         <span className="text-black/40">Resolved <span className="text-black/30">3</span></span>
       </div>
-      <div className="mt-3 grid grid-cols-[130px_1fr] gap-4">
-        <div className="space-y-1.5">
-          <div className="font-mono text-[11px] text-black/35">LIFECYCLE</div>
+      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-[130px_1fr]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:block sm:space-y-1.5">
+          <div className="w-full font-mono text-[11px] text-black/35 sm:w-auto">LIFECYCLE</div>
           {states.map(([name, n, tone], i) => (
             <div key={name} className="flex items-center gap-1.5">
               {tag(name, tone as "gray")}
@@ -338,8 +338,8 @@ export function BookPanel() {
 // 03 — AI summaries: what's failing / likely cause / next steps.
 export function EvalPanel() {
   return (
-    <div className="rounded-xl border border-black/10 bg-white p-4">
-      <div className="flex items-center gap-2 border-b border-black/10 pb-3">
+    <div className="rounded-xl border border-black/10 bg-white p-3 sm:p-4">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-black/10 pb-3">
         <span className="text-[var(--v2-accent)]">✶</span>
         <span className="text-[13px] font-medium text-[#1b1815]">AI summary</span>
         <span className="font-mono text-[11px] text-black/40">incident #4821 · HIGH</span>
@@ -377,7 +377,7 @@ export function EvalPanel() {
 // 04 — Slack-native ownership: interactive incident message.
 export function VersionPanel() {
   return (
-    <div className="rounded-xl border border-black/10 bg-white p-4">
+    <div className="rounded-xl border border-black/10 bg-white p-3 sm:p-4">
       <div className="flex items-center gap-2 border-b border-black/10 pb-2 text-xs text-black/45">
         <span className="font-medium text-[#1b1815]"># incidents</span>
       </div>

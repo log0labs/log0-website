@@ -46,7 +46,7 @@ export default function NavV2() {
           </a>
           <BtnV2
             href={links.docs}
-            className="hidden h-10 px-5 text-sm sm:inline-flex"
+            className="hidden! h-10 px-5 text-sm lg:inline-flex!"
           >
             Read the docs
           </BtnV2>
