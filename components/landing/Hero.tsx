@@ -1,10 +1,10 @@
 import AsciiHero from "@/components/ascii-hero";
-import { BtnV2, Label } from "./ui";
+import { Btn, Label } from "./ui";
 import { TracesPanel } from "./mocks";
 import { links } from "@/lib/links";
 import { ACCENT, ACCENT_DIM } from "./theme";
 
-export default function HeroV2() {
+export default function Hero() {
   return (
     <section className="border-b border-black/10">
       <div className="relative grid lg:grid-cols-2">
@@ -21,12 +21,12 @@ export default function HeroV2() {
             ownership straight to Slack. Incident clarity for microservice teams.
           </p>
           <div className="mt-10 flex flex-wrap gap-3">
-            <BtnV2 href={links.github} target="_blank" rel="noopener noreferrer">
+            <Btn href={links.github} target="_blank" rel="noopener noreferrer">
               Get started
-            </BtnV2>
-            <BtnV2 href="/docs" variant="secondary">
+            </Btn>
+            <Btn href="/docs" variant="secondary">
               Read the docs
-            </BtnV2>
+            </Btn>
           </div>
         </div>
 

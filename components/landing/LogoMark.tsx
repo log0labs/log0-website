@@ -1,6 +1,6 @@
 /*
   log0 convergence mark: a field of faint log-dots streaming through lines into
-  one solid incident dot — "many logs → one incident". One color, scales to a
+  one solid incident dot - "many logs → one incident". One color, scales to a
   16px favicon.
 */
 import { ACCENT } from "./theme";

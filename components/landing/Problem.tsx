@@ -1,7 +1,7 @@
 import { Label } from "./ui";
 import { ChatMock } from "./mocks";
 
-export default function ProblemV2() {
+export default function Problem() {
   return (
     <section className="border-b border-black/10 px-6 py-24 sm:px-10">
       <Label>The Problem</Label>

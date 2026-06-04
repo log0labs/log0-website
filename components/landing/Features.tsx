@@ -27,7 +27,7 @@ const ITEMS = [
   },
 ];
 
-export default function FeaturesV2() {
+export default function Features() {
   return (
     <section className="border-b border-black/10 px-6 py-24 sm:px-10">
       <h2 className="text-4xl font-medium leading-tight tracking-tight text-[#1b1815] sm:text-5xl">
@@ -39,7 +39,7 @@ export default function FeaturesV2() {
       <div className="mt-16 grid gap-x-12 gap-y-16 lg:grid-cols-2">
         {ITEMS.map((it) => (
           <div key={it.n} className="min-w-0">
-            <div className="font-mono text-xl font-semibold text-[var(--v2-accent)]">
+            <div className="font-mono text-xl font-semibold text-[var(--accent)]">
               {it.n}
             </div>
             <h3 className="mt-3 text-2xl font-medium text-[#1b1815]">

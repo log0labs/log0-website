@@ -4,11 +4,11 @@ import { LogoMark } from "./LogoMark";
 import { ACCENT, ACCENT_DIM } from "./theme";
 
 /*
-  Shared primitives for the /v2 landing clone (Bento-style, light theme).
+  Shared primitives for the landing page (light theme).
   Color tokens live here so every section stays consistent.
 */
 
-export const V2 = {
+export const COLORS = {
   bg: "#f4f1ea", // warm cream page background
   panel: "#161310", // near-black warm dashboard panels
   text: "#1b1815", // near-black warm text
@@ -21,7 +21,7 @@ export const V2 = {
 export function Label({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[var(--v2-accent)]">
+      <span className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
         {children}
       </span>
       <span
@@ -48,14 +48,14 @@ type BtnProps = {
 } & React.AnchorHTMLAttributes<HTMLAnchorElement>;
 
 /** Pill button matching Bento's CTA style. */
-export function BtnV2({
+export function Btn({
   variant = "primary",
   className = "",
   children,
   ...props
 }: BtnProps) {
   const styles = {
-    primary: "bg-[var(--v2-accent)] text-white hover:bg-[var(--v2-accent-hover)]",
+    primary: "bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]",
     secondary:
       "bg-transparent text-[#1b1815] border border-black/15 hover:bg-black/5",
     light: "bg-white text-[#1b1815] hover:bg-white/90",
@@ -80,7 +80,7 @@ export function GitHubIcon({ className = "" }: { className?: string }) {
 }
 
 /** Pixel-style logo mark + wordmark (re-used in nav + footer). */
-export function MarkV2({
+export function Mark({
   className = "",
   dark = false,
 }: {
@@ -89,10 +89,10 @@ export function MarkV2({
 }) {
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
-      <LogoMark className="h-5 w-6" color={dark ? "#fff" : V2.orange} />
+      <LogoMark className="h-5 w-6" color={dark ? "#fff" : COLORS.orange} />
       <span
         className="font-mono text-lg font-medium tracking-tight lowercase"
-        style={{ color: dark ? "#fff" : V2.text }}
+        style={{ color: dark ? "#fff" : COLORS.text }}
       >
         log0
       </span>

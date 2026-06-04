@@ -36,7 +36,7 @@ type Props = {
   radius?: number;
   /** rotation / flow speed multiplier */
   speed?: number;
-  /** when false, ignore the pointer (no hover warp) — for inline decoration */
+  /** when false, ignore the pointer (no hover warp) - for inline decoration */
   interactive?: boolean;
   className?: string;
 };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BtnV2, GitHubIcon, MarkV2 } from "./ui";
+import { Btn, GitHubIcon, Mark } from "./ui";
 import { links } from "@/lib/links";
 
 const NAV: string[] = [
@@ -13,13 +13,13 @@ const NAV: string[] = [
   // "Contact",
 ];
 
-export default function NavV2() {
+export default function Nav() {
   const [open, setOpen] = useState(false);
   return (
     <header className="sticky top-0 z-50 border-b border-black/10 bg-[#f4f1ea]/90 backdrop-blur-md">
       <div className="flex items-center justify-between px-6 py-4 sm:px-10">
-        <a href="/v2" aria-label="log0 home">
-          <MarkV2 />
+        <a href="/" aria-label="log0 home">
+          <Mark />
         </a>
 
         <nav className="hidden items-center gap-8 lg:flex">
@@ -44,12 +44,12 @@ export default function NavV2() {
           >
             <GitHubIcon className="size-5" />
           </a>
-          <BtnV2
+          <Btn
             href={links.docs}
             className="hidden! h-10 px-5 text-sm lg:inline-flex!"
           >
             Read the docs
-          </BtnV2>
+          </Btn>
           <button
             className="flex size-9 items-center justify-center rounded-md text-[#1b1815] lg:hidden"
             onClick={() => setOpen((o) => !o)}
@@ -84,9 +84,9 @@ export default function NavV2() {
               </li>
             ))}
           </ul>
-          <BtnV2 href={links.docs} className="mt-4 w-full">
+          <Btn href={links.docs} className="mt-4 w-full">
             Read the docs
-          </BtnV2>
+          </Btn>
         </div>
       )}
     </header>

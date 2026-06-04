@@ -3,7 +3,7 @@ import { Label } from "./ui";
 import { SignalsPanel, SpanTreePanel } from "./mocks";
 import { ACCENT, ACCENT_DIM } from "./theme";
 
-export default function SolutionV2() {
+export default function Solution() {
   return (
     <section className="border-b border-black/10">
       {/* headline + ascii */}
@@ -12,7 +12,7 @@ export default function SolutionV2() {
           <Label>Solution</Label>
           <h2 className="mt-8 text-4xl font-medium leading-tight tracking-tight text-[#1b1815] sm:text-5xl">
             log0 collapses thousands of duplicate errors into one{" "}
-            <span className="text-[var(--v2-accent)]">actionable incident</span>.
+            <span className="text-[var(--accent)]">actionable incident</span>.
           </h2>
         </div>
         <div className="pointer-events-none relative min-h-[260px] lg:min-h-full">

@@ -1,7 +1,7 @@
 /*
-  Single source for the /v2 brand accent.
+  Single source for the landing brand accent.
 
-  classNames reference CSS vars (--v2-accent / --v2-accent-hover), set on the
+  classNames reference CSS vars (--accent / --accent-hover), set on the
   page wrapper from ACCENT below. Canvas/gradient code (which can't read a CSS
   var) imports the JS constants. Switch the whole palette by changing ACTIVE.
 */

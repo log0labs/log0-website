@@ -13,7 +13,7 @@ const POSTS = [
   },
 ];
 
-export default function BlogV2() {
+export default function Blog() {
   return (
     <section className="border-b border-black/10 px-6 py-24 sm:px-10">
       <Label>From our blog</Label>
