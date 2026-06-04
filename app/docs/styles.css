@@ -2,12 +2,13 @@
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 
+/* log0 brand accent - signal green (see components/landing/theme.ts) */
 @theme {
-  --color-fd-primary: oklch(69.6% 0.17 162.48);
-  --color-fd-primary-foreground: hsl(0, 0%, 98%);
+  --color-fd-primary: #0ba06b;
+  --color-fd-primary-foreground: #ffffff;
 }
 
 .dark {
-  --color-fd-primary: oklch(69.6% 0.17 162.48);
-  --color-fd-primary-foreground: hsl(0, 0%, 9%);
+  --color-fd-primary: #22c58a; /* brighter on dark for contrast */
+  --color-fd-primary-foreground: #06231a;
 }

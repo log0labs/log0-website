@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none">
+  <!-- iOS home-screen icon: solid bg (no transparency) + convergence mark -->
+  <rect width="180" height="180" rx="40" fill="#0A0B0D" />
+  <g stroke="#22C58A" stroke-width="6" opacity="0.55">
+    <line x1="84" y1="54" x2="120" y2="90" />
+    <line x1="84" y1="90" x2="120" y2="90" />
+    <line x1="84" y1="126" x2="120" y2="90" />
+  </g>
+  <g fill="#22C58A">
+    <circle cx="36" cy="54" r="5" opacity="0.45" />
+    <circle cx="36" cy="90" r="5" opacity="0.45" />
+    <circle cx="36" cy="126" r="5" opacity="0.45" />
+    <circle cx="60" cy="54" r="5.5" opacity="0.7" />
+    <circle cx="60" cy="90" r="5.5" opacity="0.7" />
+    <circle cx="60" cy="126" r="5.5" opacity="0.7" />
+    <circle cx="84" cy="54" r="6" />
+    <circle cx="84" cy="90" r="6" />
+    <circle cx="84" cy="126" r="6" />
+  </g>
+  <circle cx="120" cy="90" r="22" fill="#22C58A" opacity="0.18" />
+  <circle cx="120" cy="90" r="13" fill="#22C58A" />
+</svg>

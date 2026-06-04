@@ -280,30 +280,32 @@ const DEMOS: Demo[] = [
 
 export default function AsciiLabPage() {
   return (
-    <main className="min-h-screen bg-[#020617] px-6 py-16 text-white">
+    <main className="min-h-screen bg-[#0a0b0d] px-6 py-16 text-white">
       <div className="mx-auto max-w-6xl">
         <h1 className="text-4xl font-semibold tracking-tight">ASCII Physics Lab</h1>
         <p className="mt-2 max-w-2xl text-neutral-400">
           Procedural physics fields for the hero / section backgrounds. Hover any
           tile - the cursor is a gravity well. Each tile is one{" "}
-          <code className="text-emerald-400">variant</code>.
+          <code className="text-[#22c58a]">variant</code>.
         </p>
 
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {DEMOS.map((d) => (
             <div
               key={d.variant + (d.src ?? "")}
-              className="relative h-72 overflow-hidden rounded-xl border border-white/10 bg-[radial-gradient(60%_60%_at_50%_60%,#0c2230_0%,#020617_100%)]"
+              className="relative h-72 overflow-hidden rounded-xl border border-white/10 bg-[radial-gradient(60%_60%_at_50%_60%,#0e2620_0%,#0a0b0d_100%)]"
             >
               <AsciiHero
                 variant={d.variant}
                 src={d.src}
                 cell={8}
                 radius={90}
+                color="#22c58a"
+                dim="rgba(34,197,138,0.16)"
               />
               <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                 <div className="flex items-center gap-2">
-                  <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300">
+                  <span className="rounded bg-[#22c58a]/20 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#5fe0ab]">
                     {d.field}
                   </span>
                   <code className="text-[11px] text-neutral-500">
