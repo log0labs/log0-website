@@ -36,6 +36,8 @@ type Props = {
   radius?: number;
   /** rotation / flow speed multiplier */
   speed?: number;
+  /** when false, ignore the pointer (no hover warp) - for inline decoration */
+  interactive?: boolean;
   className?: string;
 };
 
@@ -47,6 +49,7 @@ export default function AsciiHero({
   dim = "rgba(127,200,255,0.16)",
   radius = 110,
   speed = 1,
+  interactive = true,
   className,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -230,8 +233,10 @@ export default function AsciiHero({
 
     resize();
     window.addEventListener("resize", resize);
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerleave", onLeave);
+    if (interactive) {
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerleave", onLeave);
+    }
     raf = requestAnimationFrame(tick);
 
     return () => {
@@ -240,7 +245,7 @@ export default function AsciiHero({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerleave", onLeave);
     };
-  }, [variant, src, cell, color, dim, radius, speed]);
+  }, [variant, src, cell, color, dim, radius, speed, interactive]);
 
   return (
     <canvas
