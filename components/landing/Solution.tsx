@@ -1,4 +1,4 @@
-import AsciiHero from "@/components/ascii-hero";
+import AsciiBg from "./AsciiBg";
 import { Label } from "./ui";
 import { SignalsPanel, SpanTreePanel } from "./mocks";
 import { ACCENT, ACCENT_DIM } from "./theme";
@@ -17,8 +17,8 @@ export default function Solution() {
         </div>
         <div className="pointer-events-none relative min-h-[260px] lg:min-h-full">
           <div className="absolute inset-0">
-            <AsciiHero
-              variant="phasespace"
+            <AsciiBg
+              name="phasespace"
               cell={9}
               radius={110}
               interactive={false}

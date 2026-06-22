@@ -1,4 +1,4 @@
-import AsciiHero from "@/components/ascii-hero";
+import AsciiBg from "./AsciiBg";
 import { Btn, Label } from "./ui";
 import { TracesPanel } from "./mocks";
 import { links } from "@/lib/links";
@@ -33,8 +33,8 @@ export default function Hero() {
         {/* right: our ASCII (orange, light theme) */}
         <div className="pointer-events-none relative min-h-[320px] lg:min-h-full">
           <div className="absolute inset-0">
-            <AsciiHero
-              variant="flowfield"
+            <AsciiBg
+              name="flowfield"
               cell={9}
               radius={110}
               color={ACCENT}

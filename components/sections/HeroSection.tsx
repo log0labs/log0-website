@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import HeroGrid from "./HeroGrid";
-import AsciiHero from "@/components/ascii-hero";
+import AsciiField from "@/components/charfield/ascii-field";
+import { flowfield } from "@/components/charfield/fields/flowfield";
 import Button from "@/components/ui/Button";
 import GitHubIcon from "@/components/icons/GitHub";
 import { links } from "@/lib/links";
@@ -38,7 +39,7 @@ export default function HeroSection() {
           WebkitMaskComposite: "source-in",
         }}
       >
-        <AsciiHero variant="flowfield" cell={8} radius={110} />
+        <AsciiField field={flowfield} cell={8} radius={110} />
       </div>
 
       {/* CONTENT: hard split - left-aligned column on lg+, centered on mobile */}

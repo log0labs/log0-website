@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { AsciiVariant } from "./types";
-import { FIELDS } from "./fields";
+import type { FieldFn } from "./types";
 
 /*
   Interactive ASCII field, canvas-rendered. Inspired by bentolabs.ai hero.
 
-  Procedural variants live in ./fields/*.ts (one file each, registered in
-  ./fields/index.ts). "image" samples `src` into an ASCII portrait instead.
+  Pass a procedural `field` fn (add one with `npx charfield add <name>`), or pass
+  `src` to sample an image into an ASCII portrait instead.
 
   Mouse acts as a gravity well: cells near the cursor brighten, swap to denser
   glyphs, and warp toward it (falloff by distance). Pointer-leave eases back.
@@ -23,8 +22,9 @@ const RAMP = " .·:-=+*coO0#%@".split("");
 const HOT = "01+*=#%".split("");
 
 type Props = {
-  variant?: AsciiVariant;
-  /** image URL under /public; required for variant="image" */
+  /** procedural field fn; omit when rendering an image via `src` */
+  field?: FieldFn;
+  /** image URL; when set, samples the image into an ASCII portrait */
   src?: string;
   /** css px size of one character cell; 8-9 = dense */
   cell?: number;
@@ -42,7 +42,7 @@ type Props = {
 };
 
 export default function AsciiHero({
-  variant = "galaxy",
+  field,
   src,
   cell = 8,
   color = "#7fc8ff",
@@ -65,9 +65,8 @@ export default function AsciiHero({
     let rows = 0;
     let W = 0;
     let H = 0;
-    const useImage = variant === "image" && !!src;
-    // procedural field fn for this variant (image mode never calls it)
-    const field = FIELDS[variant === "image" ? "galaxy" : variant];
+    // image mode when a src is given; otherwise render the procedural field fn
+    const useImage = !!src;
 
     // per-cell base brightness 0..1 (image mode only)
     let base: Float32Array = new Float32Array(0);
@@ -153,7 +152,9 @@ export default function AsciiHero({
 
           let bri = useImage
             ? base[gy * cols + gx] || 0
-            : field(cx + cell * 0.5, cy + cell * 0.5, t, env);
+            : field
+              ? field(cx + cell * 0.5, cy + cell * 0.5, t, env)
+              : 0;
 
           // subtle twinkle on image cells so the portrait feels alive
           if (useImage && bri > 0.06) {
@@ -245,7 +246,7 @@ export default function AsciiHero({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerleave", onLeave);
     };
-  }, [variant, src, cell, color, dim, radius, speed, interactive]);
+  }, [field, src, cell, color, dim, radius, speed, interactive]);
 
   return (
     <canvas

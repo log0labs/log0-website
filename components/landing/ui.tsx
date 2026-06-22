@@ -1,5 +1,5 @@
 import React from "react";
-import AsciiHero from "@/components/ascii-hero";
+import AsciiBg from "./AsciiBg";
 import { LogoMark } from "./LogoMark";
 import { ACCENT, ACCENT_DIM } from "./theme";
 
@@ -28,8 +28,8 @@ export function Label({ children }: { children: React.ReactNode }) {
         aria-hidden
         className="-ml-6 block h-6 w-52 max-w-[45%] [mask-image:linear-gradient(to_right,black,black_35%,transparent)] [-webkit-mask-image:linear-gradient(to_right,black,black_35%,transparent)]"
       >
-        <AsciiHero
-          variant="trappedion"
+        <AsciiBg
+          name="trappedion"
           cell={6}
           speed={0.8}
           interactive={false}
