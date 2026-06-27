@@ -1,6 +1,6 @@
 ---
 title: Running Locally
-description: Step-by-step guide to run the full log0 pipeline on your machine - Docker infrastructure, environment variables, all seven services, health checks, log submission, and Kafka/PostgreSQL inspection.
+description: Step-by-step guide to run the full log0 pipeline on your machine - the one-command Docker stack, environment variables, all seven services, health checks, log submission, and Redpanda/PostgreSQL inspection.
 ---
 
 ## Prerequisites
@@ -17,9 +17,28 @@ Make sure these are installed before you begin:
 
 ---
 
-## Step 1 - Start Infrastructure
+## Two Ways to Run
 
-Start Kafka, Zookeeper, PostgreSQL, and ClickHouse via Docker Compose. This also auto-creates all required Kafka topics.
+**The fast path** is the unified Docker stack: one command builds and runs all seven services plus Redpanda, PostgreSQL, and ClickHouse - the same setup that's deployed.
+
+```bash
+cd log0-services/docker
+docker compose up -d --build
+# add the tunnel overlay to expose it publicly (see the Deployment page):
+# docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d --build
+```
+
+That's all you need to get the platform running - skip to [Step 4 - Health Checks](#step-4---health-checks). Set the service `.env` files (Step 2) first if you want Slack notifications or AI summaries.
+
+> The stack uses **Redpanda** (Kafka-API compatible, no Zookeeper) as the broker and builds every service from one generic `Dockerfile`. Container hostnames are injected via `SPRING_APPLICATION_JSON`, so the source `application.yml` files keep their `localhost` defaults untouched. See [Deployment](/docs/deployment) for the full picture.
+
+**The manual path** below runs each service individually on bare metal - useful when you want to debug a single service in your IDE while the rest run in Docker.
+
+---
+
+## Step 1 - Start Infrastructure Only
+
+If you're taking the manual path, start just the infrastructure (Redpanda, PostgreSQL, ClickHouse) and run the services yourself. From `log0-services/docker`, bring up only the infra containers. This also auto-creates all required topics via the `redpanda-init` container.
 
 <Tabs items={["Linux/macOS", "Windows PowerShell", "Windows CMD"]}>
   <Tab value="Linux/macOS">
@@ -62,7 +81,7 @@ Verify all containers are running:
   </Tab>
 </Tabs>
 
-You should see `log0-kafka`, `log0-zookeeper`, `log0-postgres`, and `log0-clickhouse` in the output. The `log0-kafka-setup` container will run once to create topics and exit - that's expected.
+You should see `log0-redpanda`, `log0-postgres`, and `log0-clickhouse` in the output. The `log0-redpanda-init` container runs once to create topics and exits - that's expected. (There is no Zookeeper - Redpanda needs none.)
 
 **Verify ClickHouse is up:**
 
@@ -507,16 +526,15 @@ Every endpoint should return `{"status":"UP"}`.
 
 | Container | Port | Role |
 |---|---|---|
-| log0-kafka | 9092 | Event streaming |
-| log0-zookeeper | 2181 | Kafka coordination |
-| log0-postgres | 5433 | Incident & tenant data |
+| log0-redpanda | 9092 (internal), 19092 (host) | Event streaming (Kafka API, no Zookeeper) |
+| log0-postgres | 5433 → 5432 | Incident & tenant data |
 | log0-clickhouse | 8123 (HTTP), 9000 (native) | Log event storage |
 
 ---
 
 ## Step 5 - Submit a Log
 
-Send a single test log to confirm the ingestion gateway accepts it. A `202 Accepted` means the log was published to Kafka.
+Send a single test log to confirm the ingestion gateway accepts it. A `202 Accepted` means the log was published to the broker (Redpanda).
 
 <Tabs items={["Linux/macOS", "Windows PowerShell", "Windows CMD"]}>
   <Tab value="Linux/macOS">
@@ -623,158 +641,61 @@ Expected response: `202 Accepted`. Check the ai-service logs - you should see th
 
 ---
 
-## Step 6 - Watch Kafka Topics
+## Step 6 - Watch the Topics
 
-Open additional terminals to watch messages flowing through the pipeline in real time.
+Open additional terminals to watch messages flow through the pipeline in real time. The broker is **Redpanda**, so use its `rpk` CLI inside the `log0-redpanda` container - the classic `kafka-console-consumer` tooling is not bundled.
+
+> `-o start` reads a topic from the beginning; `-f '%k -> %v\n'` prints each message key alongside its value. These `docker exec` commands are identical on Linux/macOS, PowerShell, and CMD.
 
 ### raw-logs (ingestion output)
 
-<Tabs items={["Linux/macOS", "Windows PowerShell", "Windows CMD"]}>
-  <Tab value="Linux/macOS">
-    ```bash
-    docker exec -it log0-kafka kafka-console-consumer \
-      --bootstrap-server localhost:9092 \
-      --topic raw-logs \
-      --from-beginning \
-      --property print.key=true
-    ```
-  </Tab>
-<Tab value="Windows PowerShell">
-    ```powershell
-    docker exec -it log0-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic raw-logs --from-beginning --property print.key=true
-    ```
-  </Tab>
-<Tab value="Windows CMD">
-    ```cmd
-    docker exec -it log0-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic raw-logs --from-beginning --property print.key=true
-    ```
-  </Tab>
-</Tabs>
+```bash
+docker exec -it log0-redpanda rpk topic consume raw-logs -o start -f '%k -> %v\n'
+```
 
 ### normalized-logs (after normalization + fingerprinting)
 
-<Tabs items={["Linux/macOS", "Windows PowerShell", "Windows CMD"]}>
-  <Tab value="Linux/macOS">
-    ```bash
-    docker exec -it log0-kafka kafka-console-consumer \
-      --bootstrap-server localhost:9092 \
-      --topic normalized-logs \
-      --from-beginning \
-      --property print.key=true
-    ```
-  </Tab>
-<Tab value="Windows PowerShell">
-    ```powershell
-    docker exec -it log0-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic normalized-logs --from-beginning --property print.key=true
-    ```
-  </Tab>
-<Tab value="Windows CMD">
-    ```cmd
-    docker exec -it log0-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic normalized-logs --from-beginning --property print.key=true
-    ```
-  </Tab>
-</Tabs>
+```bash
+docker exec -it log0-redpanda rpk topic consume normalized-logs -o start -f '%k -> %v\n'
+```
 
 ### incident-events (fires after 10 occurrences of the same fingerprint)
 
-<Tabs items={["Linux/macOS", "Windows PowerShell", "Windows CMD"]}>
-  <Tab value="Linux/macOS">
-    ```bash
-    docker exec -it log0-kafka kafka-console-consumer \
-      --bootstrap-server localhost:9092 \
-      --topic incident-events \
-      --from-beginning \
-      --property print.key=true
-    ```
-  </Tab>
-<Tab value="Windows PowerShell">
-    ```powershell
-    docker exec -it log0-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic incident-events --from-beginning --property print.key=true
-    ```
-  </Tab>
-<Tab value="Windows CMD">
-    ```cmd
-    docker exec -it log0-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic incident-events --from-beginning --property print.key=true
-    ```
-  </Tab>
-</Tabs>
+```bash
+docker exec -it log0-redpanda rpk topic consume incident-events -o start -f '%k -> %v\n'
+```
 
 ### notification-events (triggers Slack messages)
 
-<Tabs items={["Linux/macOS", "Windows PowerShell", "Windows CMD"]}>
-  <Tab value="Linux/macOS">
-    ```bash
-    docker exec -it log0-kafka kafka-console-consumer \
-      --bootstrap-server localhost:9092 \
-      --topic notification-events \
-      --from-beginning \
-      --property print.key=true
-    ```
-  </Tab>
-<Tab value="Windows PowerShell">
-    ```powershell
-    docker exec -it log0-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic notification-events --from-beginning --property print.key=true
-    ```
-  </Tab>
-<Tab value="Windows CMD">
-    ```cmd
-    docker exec -it log0-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic notification-events --from-beginning --property print.key=true
-    ```
-  </Tab>
-</Tabs>
+```bash
+docker exec -it log0-redpanda rpk topic consume notification-events -o start -f '%k -> %v\n'
+```
 
 ### raw-logs-dlq (dead letter queue - should stay empty)
 
-<Tabs items={["Linux/macOS", "Windows PowerShell", "Windows CMD"]}>
-  <Tab value="Linux/macOS">
-    ```bash
-    docker exec -it log0-kafka kafka-console-consumer \
-      --bootstrap-server localhost:9092 \
-      --topic raw-logs-dlq \
-      --from-beginning
-    ```
-  </Tab>
-<Tab value="Windows PowerShell">
-    ```powershell
-    docker exec -it log0-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic raw-logs-dlq --from-beginning
-    ```
-  </Tab>
-<Tab value="Windows CMD">
-    ```cmd
-    docker exec -it log0-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic raw-logs-dlq --from-beginning
-    ```
-  </Tab>
-</Tabs>
+```bash
+docker exec -it log0-redpanda rpk topic consume raw-logs-dlq -o start
+```
 
 ### Check consumer group lag
 
 Zero lag means all services are caught up. Lag > 0 means a service is behind or crashed.
 
-<Tabs items={["Linux/macOS", "Windows PowerShell", "Windows CMD"]}>
+<Tabs items={["Linux/macOS", "Windows PowerShell"]}>
   <Tab value="Linux/macOS">
     ```bash
     for group in normalization-service clustering-service incident-service notification-service; do
       echo "--- $group ---"
-      docker exec -it log0-kafka kafka-consumer-groups \
-        --bootstrap-server localhost:9092 \
-        --describe --group $group
+      docker exec -it log0-redpanda rpk group describe $group
     done
     ```
   </Tab>
 <Tab value="Windows PowerShell">
     ```powershell
-    docker exec -it log0-kafka kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group normalization-service
-    docker exec -it log0-kafka kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group clustering-service
-    docker exec -it log0-kafka kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group incident-service
-    docker exec -it log0-kafka kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group notification-service
-    ```
-  </Tab>
-<Tab value="Windows CMD">
-    ```cmd
-    docker exec -it log0-kafka kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group normalization-service
-    docker exec -it log0-kafka kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group clustering-service
-    docker exec -it log0-kafka kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group incident-service
-    docker exec -it log0-kafka kafka-consumer-groups --bootstrap-server localhost:9092 --describe --group notification-service
+    foreach ($g in 'normalization-service','clustering-service','incident-service','notification-service') {
+      Write-Host "--- $g ---"
+      docker exec -it log0-redpanda rpk group describe $g
+    }
     ```
   </Tab>
 </Tabs>

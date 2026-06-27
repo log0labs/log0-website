@@ -1,0 +1,57 @@
+---
+title: Changelog
+description: A dated, reverse-chronological record of notable changes across log0's services, console, charfield package, website, and deployment.
+---
+
+## How to read this
+
+Entries are newest-first and tagged by component: **[services]**, **[console]**, **[charfield]**, **[website]**, **[deploy]**. For the narrative version see the [Timeline](/docs/timeline); for what's coming see the [Roadmap](/docs/roadmap).
+
+---
+
+## 2026-06-27 - Live deployment
+
+- **[deploy]** Registered `log0.in`; moved DNS to Cloudflare with free TLS.
+- **[deploy]** Three frontends live on Vercel: `log0.in`, `console.log0.in`, `charfield.log0.in`.
+- **[services]** Migrated the event bus from **Apache Kafka + Zookeeper to Redpanda v24.2.7** (Kafka-API compatible, single binary, no Zookeeper). No application code changed - only `bootstrap-servers`.
+- **[services]** Full Docker stack: one generic multi-stage `Dockerfile` builds all 7 services; one `docker compose` brings up services + Redpanda + PostgreSQL + ClickHouse. Container hostnames injected via `SPRING_APPLICATION_JSON` so source `application.yml` stays untouched.
+- **[services]** Fixed hard-coded `localhost:9092` brokers in `clustering-service` and `normalization-service` Kafka config classes - now read `spring.kafka.bootstrap-servers`, restoring env-driven config.
+- **[deploy]** Backend exposed through a **Cloudflare named Tunnel** (`api` / `auth` / `ingest`.log0.in → incident / auth / ingestion-gateway). No public IP, no port-forwarding, no Cloudflare card (CLI tunnel, not the Zero Trust dashboard).
+- **[console]** Replaced `next.config` rewrites with a same-origin **Route Handler** proxy (`app/api/v1/[...path]`). Fixes Vercel `500`s on authenticated (`200`/chunked) responses; preserves no-CORS, first-party cookies.
+- **[console]** Log Ingestion Endpoint on the Workspace page now reads `NEXT_PUBLIC_INGEST_URL` instead of a hard-coded `localhost`.
+
+---
+
+## 2026-06 - Console polish & charfield publish
+
+- **[charfield]** Published to npm as **v0.1.1** - 44 physics/math themed ASCII fields, demo site, and live playground at `charfield.vercel.app`.
+- **[charfield]** Initial **v0.1.0** - registry + CLI (`npx charfield add <field>`), registry generator, canvas component.
+- **[console]** Split auth pages with a brand panel and a charfield flowfield backdrop; added the Geist Pixel `log0` mark and site icons.
+- **[console]** Restricted settings to the ADMIN role; central 3-tier token theme; styled collapsed-sidebar tooltips; film-grain overlay.
+
+---
+
+## 2026-04 - Console foundation
+
+- **[console]** First release of `log0-console` (Next.js 16, React 19): auth hydration gate, 404 page, error boundary.
+- **[console]** Settings - workspace, API keys, members; raw incident list.
+- **[website]** Landing page sections (hero, problem, solution, features).
+
+---
+
+## 2026-03 - Pipeline complete & docs
+
+- **[services]** `ai-service` - multi-provider LLM incident summaries (Groq default; OpenAI/Gemini/Anthropic via Strategy Pattern).
+- **[services]** `notification-service` - Slack Block Kit alerts; WhatsApp wired.
+- **[services]** `incident-service` - incident state machine on PostgreSQL with AI-summary callback.
+- **[services]** `clustering-service` - tumbling 5-min windows, threshold-based incident creation.
+- **[services]** `normalization-service` - SHA-256 fingerprinting + ClickHouse log storage.
+- **[website]** Fumadocs docs site - architecture overview, system design, flow diagrams, LLD/UML, decisions; AsyncAPI contracts as interactive HTML.
+
+---
+
+## 2026-01 to 02 - Foundations
+
+- **[services]** Monorepo + `ingestion-gateway` (Java 25, Spring Boot 4); Dockerized broker.
+- **[services]** `auth-service` - multi-tenant model: tenants, users, JWT, API keys, RBAC.
+- **[services]** Log ingestion endpoint `POST /api/v1/logs` with Kafka producer + DLQ fallback.

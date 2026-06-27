@@ -62,7 +62,7 @@ These docs follow the [C4 model](https://c4model.com/) - four levels of zoom, ea
 
 <Cards>
   <Card title="System Design" href="/docs/architecture/high-level-system-architecture">
-    **C4 Level 2 - Containers.** The full platform architecture: all services, Kafka topics, storage layers, and how they connect. Start here to understand what the system is made of.
+    **C4 Level 2 - Containers.** The full platform architecture: all seven services, Redpanda topics, storage layers, and how they connect. Start here to understand what the system is made of.
   </Card>
   <Card title="Flow Diagrams" href="/docs/architecture/flow-diagrams">
     **Behavior.** What actually happens at runtime. Starts with a golden path walkthrough - a single error storm traced from HTTP request to Slack notification - then documents every sub-flow in detail.
@@ -113,7 +113,7 @@ These are the design-time targets for a single-instance deployment.
 | Normalization latency (p99) | < 50ms per event |
 | Fingerprint generation | < 1ms |
 | Incident detection lag | < 30 seconds from first log |
-| Kafka consumer lag target | < 1,000 messages |
+| Consumer lag target | < 1,000 messages |
 | Deduplication ratio | Up to 10,000:1 |
 
 ---
@@ -123,11 +123,13 @@ These are the design-time targets for a single-instance deployment.
 | Component | Technology | Role |
 |---|---|---|
 | Language | Java 25 | All backend services |
-| Framework | Spring Boot 4.0.4 | Web, Kafka, validation |
-| Event bus | Apache Kafka (Confluent 7.5.0) | Inter-service communication |
-| Log storage | ClickHouse | High-volume analytical queries |
-| Incident storage | PostgreSQL | ACID transactions, relational state |
-| Cache / state | Redis | Rate limiting, clustering windows, LLM cache |
+| Framework | Spring Boot 4 (4.0.4-4.0.5) | Web, Kafka client, validation |
+| Event bus | Redpanda v24.2.7 (Kafka API) | Inter-service communication - single binary, no Zookeeper |
+| Log storage | ClickHouse 24.3 | High-volume analytical queries |
+| Incident storage | PostgreSQL 16 | ACID transactions, relational state |
+| Cache / state | Redis (planned) | Rate limiting, retention - not yet deployed; clustering windows are in-process today |
 | AI summaries | Groq (default) · OpenAI · Gemini · Anthropic | Incident summarization via Strategy Pattern |
-| Notifications | Slack Block Kit + WhatsApp | Engineer alerts and actions |
-| Build | Maven + Docker | Service builds and local infra |
+| Notifications | Slack Block Kit + WhatsApp (untested) | Engineer alerts and actions |
+| Build | Maven + Docker (one generic Dockerfile) | Service builds and local infra |
+| Frontend | Next.js 16 console, live at `console.log0.in` | Incident management UI |
+| Deployment | Vercel · Cloudflare Tunnel · Docker | Frontends, edge, backend - see [Deployment](/docs/deployment) |

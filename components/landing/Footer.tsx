@@ -1,9 +1,11 @@
-import { Btn, GitHubIcon, Mark } from "./ui";
+import { Btn, Mark } from "./ui";
+import { LogoMark } from "./LogoMark";
 import { links } from "@/lib/links";
 
 const LINKS: { label: string; href: string; external?: boolean }[] = [
   { label: "GitHub", href: links.github, external: true },
   { label: "Docs", href: links.docs },
+  { label: "Console", href: links.console, external: true },
   // commented out for now - restore when these pages exist
   // { label: "Blog", href: links.blog },
   // { label: "About Us", href: "#" },
@@ -19,13 +21,11 @@ export default function Footer() {
           Turn log chaos into incident clarity
         </h2>
         <Btn
-          href={links.github}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={links.console}
           variant="light"
           className="mt-10 h-14 gap-2 px-8 text-base"
         >
-          <GitHubIcon className="size-5" />
+          <LogoMark className="size-5" />
           Get started
         </Btn>
       </div>

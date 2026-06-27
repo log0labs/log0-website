@@ -21,7 +21,7 @@ export default function Hero() {
             ownership straight to Slack. Incident clarity for microservice teams.
           </p>
           <div className="mt-10 flex flex-wrap gap-3">
-            <Btn href={links.github} target="_blank" rel="noopener noreferrer">
+            <Btn href={links.console}>
               Get started
             </Btn>
             <Btn href="/docs" variant="secondary">

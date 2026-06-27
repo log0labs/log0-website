@@ -5,4 +5,5 @@ export const links = {
 
   docs: "/docs",
   blog: "/blog",
+  console: "https://console.log0.in",
 } as const;

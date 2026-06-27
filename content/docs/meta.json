@@ -2,7 +2,11 @@
   "title": "Docs",
   "pages": [
     "index",
+    "architecture",
     "local-development",
-    "architecture"
+    "deployment",
+    "roadmap",
+    "timeline",
+    "changelog"
   ]
 }

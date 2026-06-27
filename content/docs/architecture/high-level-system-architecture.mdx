@@ -26,7 +26,7 @@ graph TD
             IG[Ingestion Gateway\nSpring Boot :8080\nPOST /api/v1/logs]
         end
 
-        subgraph Kafka["Apache Kafka (Event Bus)"]
+        subgraph Kafka["Redpanda (Kafka API · Event Bus)"]
             T1[(raw-logs)]
             T2[(normalized-logs)]
             T3[(incident-events)]
@@ -133,7 +133,7 @@ graph TD
 
     subgraph log0Core["log0 Shared Infrastructure"]
         IG["Ingestion Gateway\nExtracts X-TENANT-ID → RequestContext"]
-        K["Kafka\nPartitioned by tenantId\n(ordering guarantee per tenant)"]
+        K["Redpanda\nPartitioned by tenantId\n(ordering guarantee per tenant)"]
         NS["Normalization Service\nPasses tenantId through all events"]
         IS["Incident Service\nALL queries filtered by tenant_id"]
         PG["PostgreSQL\ntenant_id on every row"]
@@ -170,7 +170,7 @@ Tenant context is established at the boundary (the `X-TENANT-ID` header) and car
 
 ## Kafka Topics and Event Flow
 
-Kafka is the connective tissue of log0. This diagram shows which service produces to which topic and which service consumes from it.
+Redpanda (speaking the Kafka API) is the connective tissue of log0. This diagram shows which service produces to which topic and which service consumes from it.
 
 ```mermaid
 graph LR
@@ -237,7 +237,7 @@ This graph shows which external systems each service depends on directly.
 
 ```mermaid
 graph TD
-    K[Apache Kafka]
+    K[Redpanda]
     PG[PostgreSQL]
     CH[ClickHouse]
     RD[Redis]
@@ -283,18 +283,19 @@ The two highest-latency operations are:
 
 | Service | Port | Protocol | Status |
 |---|---|---|---|
-| Ingestion Gateway | 8080 | HTTP | ✅ Implemented |
-| Normalization Service | 8081 | - (Kafka only) | ✅ Implemented |
-| Clustering Service | 8082 | - (Kafka only) | ✅ Implemented |
-| Incident Service | 8083 | HTTP + Kafka | ✅ Implemented |
+| Ingestion Gateway | 8080 | HTTP | ✅ Implemented · public via `ingest.log0.in` |
+| Normalization Service | internal | - (consumer only) | ✅ Implemented |
+| Clustering Service | 8082 | - (consumer only) | ✅ Implemented |
+| Incident Service | 8083 | HTTP + Kafka | ✅ Implemented · public via `api.log0.in` |
 | Notification Service | 8084 | HTTP + Kafka | ✅ Implemented |
 | AI Summary Service | 8085 | HTTP | ✅ Implemented |
-| Auth Service | 8086 | HTTP | ✅ Implemented |
-| Frontend (Vite) | 3000 | HTTP | Planned |
-| Kafka (external) | 9092 | TCP | ✅ Running |
-| Kafka (internal/Docker) | 29092 | TCP | ✅ Running |
-| Zookeeper | 2181 | TCP | ✅ Running |
-| PostgreSQL | 5433 | TCP | ✅ Running |
-| ClickHouse (HTTP) | 8123 | HTTP | Planned |
-| ClickHouse (native) | 9000 | TCP | Planned |
-| Redis | 6379 | TCP | Planned |
+| Auth Service | 8086 | HTTP | ✅ Implemented · public via `auth.log0.in` |
+| Console (Next.js) | 3001 (dev) | HTTP | ✅ Live at `console.log0.in` (Vercel) |
+| Redpanda (internal/Docker) | 9092 | TCP | ✅ Running |
+| Redpanda (external/host) | 19092 | TCP | ✅ Running |
+| PostgreSQL | 5433 → 5432 | TCP | ✅ Running |
+| ClickHouse (HTTP) | 8123 | HTTP | ✅ Running |
+| ClickHouse (native) | 9000 | TCP | ✅ Running |
+| Redis | 6379 | TCP | Planned (not deployed) |
+
+> Zookeeper is gone - Redpanda needs no separate coordination service. Only `auth`, `incident`, and `ingestion-gateway` are exposed publicly (through the Cloudflare Tunnel); the rest are internal consumers. See [Deployment](/docs/deployment).

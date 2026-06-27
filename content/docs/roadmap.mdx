@@ -1,0 +1,118 @@
+---
+title: Roadmap
+description: Where log0 is today and what's next - the state of all seven backend services, the console, charfield, and this website, plus the pending work toward a production-ready multi-tenant SaaS.
+---
+
+## Status at a Glance
+
+log0 is a working end-to-end product: logs flow in, incidents come out, and the console renders them on a live domain. The backend MVP is **functionally complete** and **deployed**; the remaining work is production hardening (observability, rate limiting, automated tests, billing).
+
+| Area | State |
+|---|---|
+| Event pipeline (ingest → normalize → cluster → incident → notify) | ✅ Working end-to-end |
+| Multi-tenant model (tenants, users, JWT, API keys, RBAC) | ✅ Working |
+| AI incident summaries (Groq default, pluggable) | ✅ Working |
+| Slack notifications | ✅ Working · interactive assign/ack flows partial |
+| Console (dashboard, incidents, logs, settings) | ✅ Live at `console.log0.in` |
+| Deployment (Docker + Cloudflare Tunnel + Vercel) | ✅ Live |
+| Observability, rate limiting, tests, billing | ⬜ Planned |
+
+---
+
+## Backend Services
+
+All seven services run on **Java 25 / Spring Boot 4** and ship in the unified Docker stack.
+
+| Service | Port | Status | Notes |
+|---|---|---|---|
+| ingestion-gateway | 8080 | ✅ | REST intake → `raw-logs`; DLQ fallback |
+| normalization-service | internal | ✅ | fingerprinting (SHA-256) + ClickHouse insert |
+| clustering-service | 8082 | ✅ | 5-min tumbling windows, threshold = 10 |
+| incident-service | 8083 | ✅ | state machine, PostgreSQL, AI callback |
+| ai-service | 8085 | ✅ | Groq · OpenAI · Gemini · Anthropic (Strategy Pattern) |
+| auth-service | 8086 | ✅ | JWT, tenants, API keys, RBAC |
+| notification-service | 8084 | ✅ | Slack Block Kit; WhatsApp wired, untested |
+
+### Planned backend work
+
+- **Observability** - Prometheus metrics, structured logging with correlation IDs, DLQ monitor/reprocessor.
+- **API gateway & security** - per-tenant API-key validation at the edge, rate limiting (free/pro tiers).
+- **Testing** - unit + integration coverage, failure-injection scenarios (broker down, DLQ replay).
+- **SaaS readiness** - usage tracking, tenant quotas, log retention policies.
+- **Notifications** - finish Slack interactive assign/acknowledge/resolve; validate WhatsApp.
+
+---
+
+## Console (`log0-console`)
+
+Next.js 16 + React 19, live at `console.log0.in`.
+
+| Feature | Status |
+|---|---|
+| Auth (login, register, JWT refresh, RBAC route guards) | ✅ |
+| Dashboard (14-day timeline, severity/status charts, top services) | ✅ |
+| Incidents list + detail drawer | ✅ |
+| Logs explorer (ClickHouse, filters, expandable detail) | ✅ |
+| Settings - workspace, members, API keys | ✅ |
+| Same-origin API proxy (Route Handler) | ✅ |
+| Real-time via WebSocket (currently polling) | ⬜ |
+
+---
+
+## charfield
+
+Standalone open-source package - a shadcn-style copy-in registry + CLI for ASCII canvas field animations, used as the visual signature across log0's frontends.
+
+| Item | State |
+|---|---|
+| Published to npm (`charfield`) | ✅ v0.1.1 |
+| CLI (`npx charfield add <field>`) | ✅ |
+| Field library | ✅ 44 physics/math themed fields |
+| Demo + playground (`charfield.vercel.app`) | ✅ |
+| More fields, presets, framework adapters | ⬜ |
+
+---
+
+## Website (`log0-website`)
+
+Next.js 16 + Fumadocs, live at `log0.in`.
+
+| Item | State |
+|---|---|
+| Marketing landing page | ✅ |
+| Docs (architecture, local dev, deployment, this roadmap) | ✅ |
+| AsyncAPI contracts (interactive HTML at `/asyncapi`) | ✅ |
+| Blog | ⬜ (stubbed, disabled) |
+
+---
+
+## Planned Pricing Tiers
+
+The multi-tenant model is built to support tiered limits; enforcement (usage tracking + quotas) is upcoming.
+
+| Feature | Free | Pro |
+|---|---|---|
+| Services | 1 | Unlimited |
+| Logs / day | 10,000 | 1,000,000 |
+| Incident history | 7 days | 90 days |
+| Slack notifications | ✅ | ✅ |
+| WhatsApp alerts | ❌ | ✅ |
+| AI summaries | 10 / day | Unlimited |
+| Users | 3 | Unlimited |
+
+---
+
+<Cards>
+  <Card title="Timeline" href="/docs/timeline">
+    The chronological build history across all four repos.
+  </Card>
+  <Card title="Changelog" href="/docs/changelog">
+    Dated, versioned record of notable changes.
+  </Card>
+  <Card title="Deployment" href="/docs/deployment">
+    How the current stack is hosted and why it's swappable.
+  </Card>
+  <Card title="Architecture" href="/docs/architecture">
+    The full technical design behind the platform.
+  </Card>
+</Cards>

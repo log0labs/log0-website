@@ -11,9 +11,9 @@ Each record follows this format: **Context** (what problem forced a decision), *
 
 ---
 
-## ADR-001: Apache Kafka as the Event Bus
+## ADR-001: Kafka-API Event Bus (Redpanda)
 
-**Status:** Accepted
+**Status:** Accepted · updated 2026-06 (Apache Kafka → Redpanda)
 
 ### Context
 
@@ -23,7 +23,7 @@ A message queue or event bus is required to decouple the stages.
 
 ### Decision
 
-Use **Apache Kafka** (Confluent 7.5.0) as the event bus between all services.
+Use a **Kafka-API event bus** between all services. The deployed broker is **Redpanda v24.2.7** - a single Kafka-compatible binary with no Zookeeper. The original local stack used Apache Kafka (Confluent 7.5.0); the migration to Redpanda changed only the `bootstrap-servers` address. The Kafka wire protocol, topics, consumer groups, and all producer/consumer code are identical across both, so everything below applies unchanged.
 
 ### Alternatives Considered
 
@@ -37,16 +37,16 @@ Use **Apache Kafka** (Confluent 7.5.0) as the event bus between all services.
 ### Consequences
 
 **Accepted trade-offs:**
-- Kafka requires Zookeeper (or KRaft in newer versions), adding operational complexity
-- Local development requires running Kafka infrastructure (Docker Compose)
+- An event bus is still infrastructure to run locally (Docker Compose) - though Redpanda makes this a single container
 - Message ordering is guaranteed per partition (per tenantId), not globally
 
 **Benefits realized:**
 - Each service can scale independently based on its consumer lag
-- Kafka's consumer group semantics allow multiple normalization instances to share load automatically
+- Consumer group semantics allow multiple normalization instances to share load automatically
 - Message replay is native - reprocessing from a given offset requires no extra tooling
-- The DLQ pattern is a natural extension of Kafka's existing topic model
+- The DLQ pattern is a natural extension of the topic model
 - Producer idempotence (`enable.idempotence=true`) prevents duplicate messages under retries
+- **Redpanda specifically:** no Zookeeper, one binary, lower memory (~1 GB saved vs a JVM broker + Zookeeper), and faster startup - ideal for the single-host deployment. See [Deployment](/docs/deployment).
 
 ---
 

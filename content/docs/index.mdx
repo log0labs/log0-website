@@ -42,7 +42,7 @@ curl -X POST http://localhost:8080/api/v1/logs \
   }'
 ```
 
-A `202 Accepted` response means the log was received and published to Kafka. The normalization, clustering, and incident pipeline runs asynchronously - your service is never blocked waiting for it.
+A `202 Accepted` response means the log was received and published to the event bus (Redpanda). The normalization, clustering, and incident pipeline runs asynchronously - your service is never blocked waiting for it.
 
 ---
 
@@ -50,7 +50,7 @@ A `202 Accepted` response means the log was received and published to Kafka. The
 
 <Cards>
   <Card title="Architecture" href="/docs/architecture">
-    How the platform is built - system context, all six services, Kafka event pipeline, storage layers, and the design decisions behind every choice.
+    How the platform is built - system context, all seven services, the Redpanda event pipeline, storage layers, and the design decisions behind every choice.
   </Card>
   <Card title="Flow Diagrams" href="/docs/architecture/flow-diagrams">
     What happens at runtime. Traced through a concrete scenario: a payment service error storm from first HTTP request to Slack notification.
@@ -59,6 +59,19 @@ A `202 Accepted` response means the log was received and published to Kafka. The
     Class diagrams, data models, and Kafka event schemas for every service. Reference for implementation code.
   </Card>
   <Card title="Architecture Decisions" href="/docs/architecture/decisions">
-    Why Kafka, why ClickHouse, why SHA-256 fingerprinting, why manual ACK. Every significant design choice with alternatives considered.
+    Why an event bus, why ClickHouse, why SHA-256 fingerprinting, why manual ACK. Every significant design choice with alternatives considered.
+  </Card>
+</Cards>
+
+---
+
+## Project Status
+
+<Cards>
+  <Card title="Roadmap" href="/docs/roadmap">
+    Where every piece stands today and what's next.
+  </Card>
+  <Card title="Deployment" href="/docs/deployment">
+    How the live stack is hosted - Vercel, Docker, and a swappable Cloudflare Tunnel.
   </Card>
 </Cards>

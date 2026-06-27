@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Btn, GitHubIcon, Mark } from "./ui";
+import { Btn, DocsIcon, Mark } from "./ui";
 import { links } from "@/lib/links";
 
 const NAV: string[] = [
@@ -36,19 +36,17 @@ export default function Nav() {
 
         <div className="flex items-center gap-3">
           <a
-            href={links.github}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="log0 on GitHub"
+            href={links.docs}
+            aria-label="Read the docs"
             className="flex size-9 items-center justify-center rounded-md text-[#1b1815]/70 transition-colors hover:bg-black/5 hover:text-[#1b1815]"
           >
-            <GitHubIcon className="size-5" />
+            <DocsIcon className="size-5" />
           </a>
           <Btn
-            href={links.docs}
+            href={links.console}
             className="hidden! h-10 px-5 text-sm lg:inline-flex!"
           >
-            Read the docs
+            Get Started
           </Btn>
           <button
             className="flex size-9 items-center justify-center rounded-md text-[#1b1815] lg:hidden"
@@ -84,8 +82,8 @@ export default function Nav() {
               </li>
             ))}
           </ul>
-          <Btn href={links.docs} className="mt-4 w-full">
-            Read the docs
+          <Btn href={links.console} className="mt-4 w-full">
+            Get Started
           </Btn>
         </div>
       )}

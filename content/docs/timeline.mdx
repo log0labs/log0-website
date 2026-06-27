@@ -1,0 +1,87 @@
+---
+title: Timeline
+description: The chronological build history of log0 in 2026 - from the first ingestion endpoint to a fully deployed multi-tenant platform with a live console, an npm package, and a public docs site.
+---
+
+## Overview
+
+log0 was built solo over the first half of 2026, starting as a backend-only event pipeline and growing into four shipped pieces: the **services** (the platform), the **console** (the UI), **charfield** (an extracted open-source package), and this **website** (marketing + docs).
+
+> Dates are month-granular. The platform is a personal project, so the "timeline" tracks capability milestones rather than formal releases.
+
+---
+
+## Q1 2026 - Foundations & the Pipeline
+
+The backend skeleton and the core event-driven pipeline.
+
+| When | Milestone |
+|---|---|
+| Jan 2026 | Monorepo scaffolding; `ingestion-gateway` (Java 25, Spring Boot 4); Dockerized Kafka |
+| Feb 2026 | SaaS core - tenants, users, JWT auth, API keys, RBAC in `auth-service` |
+| Feb 2026 | Log ingestion: `POST /api/v1/logs` → Kafka producer with DLQ fallback |
+| Mar 2026 | `normalization-service` - log normalization + SHA-256 fingerprinting + ClickHouse |
+| Mar 2026 | `clustering-service` - tumbling 5-min windows, threshold-based incident creation |
+| Mar 2026 | `incident-service` - incident state machine (NEW → ASSIGNED → ACKNOWLEDGED → RESOLVED) on PostgreSQL |
+
+---
+
+## Q1-Q2 2026 - Intelligence, Notifications & Docs
+
+The platform learns to summarize and speak, and the public site appears.
+
+| When | Milestone |
+|---|---|
+| Mar 2026 | `ai-service` - multi-provider LLM summaries (Groq default; OpenAI/Gemini/Anthropic via Strategy Pattern) |
+| Mar 2026 | `notification-service` - Slack Block Kit alerts; WhatsApp wired |
+| Mar 2026 | `log0-website` - Next.js + Fumadocs docs site; architecture, flows, ADRs |
+| Mar-Apr 2026 | AsyncAPI Kafka contracts published as interactive HTML on the website |
+| Apr 2026 | Landing page - hero, problem/solution, feature sections |
+
+---
+
+## Q2 2026 - The Console
+
+The platform gets a face.
+
+| When | Milestone |
+|---|---|
+| Apr 2026 | `log0-console` - Next.js 16 / React 19; auth flow with httpOnly refresh cookie |
+| Apr 2026 | Settings - workspace, members, API keys; raw incident list |
+| Apr-Jun 2026 | Dashboard (timeline + charts), incidents detail drawer, logs explorer |
+| Jun 2026 | Admin-only settings, central theme tokens, polished auth pages |
+
+---
+
+## Q2 2026 - charfield Extracted & Published
+
+The ASCII canvas animation system used across the frontends became its own product.
+
+| When | Milestone |
+|---|---|
+| Jun 2026 | `charfield` scaffolded - ASCII field registry + canvas component |
+| Jun 2026 | CLI (`npx charfield add <field>`) + registry generator |
+| Jun 2026 | Published to npm as `charfield` **v0.1.0**, then **v0.1.1** (44 fields, docs site + playground) |
+
+---
+
+## June 27, 2026 - Goes Live
+
+The whole stack was deployed to a real domain in a single push - and a deliberate migration off Apache Kafka.
+
+| Milestone |
+|---|
+| Domain `log0.in` registered; DNS + free TLS on Cloudflare |
+| Three frontends live on Vercel: `log0.in`, `console.log0.in`, `charfield.log0.in` |
+| **Apache Kafka + Zookeeper → Redpanda v24.2.7** (Kafka-API compatible, single binary, no Zookeeper) |
+| Backend fully Dockerized - one `docker compose` for 7 services + Redpanda + PostgreSQL + ClickHouse |
+| Backend exposed via a **Cloudflare named Tunnel** (`api` / `auth` / `ingest`.log0.in) - no public IP, no card |
+| Console wired to the backend through a same-origin Route Handler proxy; end-to-end verified live |
+
+See the [Deployment](/docs/deployment) page for how this is hosted and why it's swappable, and the [Changelog](/docs/changelog) for the dated record.
+
+---
+
+## What's Next
+
+Production hardening: observability, per-tenant rate limiting, automated tests, and billing enforcement. Tracked on the [Roadmap](/docs/roadmap).
