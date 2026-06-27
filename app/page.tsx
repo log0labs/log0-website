@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export default function Home() {
   return (
     <div
-      className="min-h-screen overflow-x-hidden bg-[#f4f1ea] font-sans text-[#1b1815]"
+      className="min-h-screen overflow-x-clip bg-[#f4f1ea] font-sans text-[#1b1815]"
       style={
         {
           "--accent": ACCENT,

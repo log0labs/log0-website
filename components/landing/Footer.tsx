@@ -5,7 +5,7 @@ import { links } from "@/lib/links";
 const LINKS: { label: string; href: string; external?: boolean }[] = [
   { label: "GitHub", href: links.github, external: true },
   { label: "Docs", href: links.docs },
-  { label: "Console", href: links.console, external: true },
+  { label: "Console", href: links.console },
   // commented out for now - restore when these pages exist
   // { label: "Blog", href: links.blog },
   // { label: "About Us", href: "#" },
