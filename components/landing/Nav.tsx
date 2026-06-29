@@ -99,6 +99,15 @@ export default function Nav() {
             ))}
             <li>
               <a
+                href={links.docs}
+                onClick={() => setOpen(false)}
+                className="text-[15px] text-[#1b1815]/80"
+              >
+                Docs
+              </a>
+            </li>
+            <li>
+              <a
                 href={links.blogSeries}
                 target="_blank"
                 rel="noopener noreferrer"
