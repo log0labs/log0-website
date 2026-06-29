@@ -5,5 +5,6 @@ export const links = {
 
   docs: "/docs",
   blog: "/blog",
+  blogSeries: "https://engineeringwithashmit.hashnode.dev/series/log0",
   console: "https://console.log0.in",
 } as const;

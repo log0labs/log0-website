@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Btn, DocsIcon, Mark } from "./ui";
+import { Btn, Mark } from "./ui";
 import { links } from "@/lib/links";
 
 const NAV: string[] = [
@@ -32,9 +32,24 @@ export default function Nav() {
               {label}
             </a>
           ))}
+          <a
+            href={links.docs}
+            className="text-[15px] text-[#1b1815]/80 transition-colors hover:text-[#1b1815]"
+          >
+            Docs
+          </a>
+          <a
+            href={links.blogSeries}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[15px] text-[#1b1815]/80 transition-colors hover:text-[#1b1815]"
+          >
+            Blog
+          </a>
         </nav>
 
         <div className="flex items-center gap-3">
+          {/* docs icon moved to nav as text link
           <a
             href={links.docs}
             aria-label="Read the docs"
@@ -42,6 +57,7 @@ export default function Nav() {
           >
             <DocsIcon className="size-5" />
           </a>
+          */}
           <Btn
             href={links.console}
             className="hidden! h-10 px-5 text-sm lg:inline-flex!"
@@ -81,6 +97,17 @@ export default function Nav() {
                 </a>
               </li>
             ))}
+            <li>
+              <a
+                href={links.blogSeries}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setOpen(false)}
+                className="text-[15px] text-[#1b1815]/80"
+              >
+                Blog
+              </a>
+            </li>
           </ul>
           <Btn href={links.console} className="mt-4 w-full">
             Get Started
