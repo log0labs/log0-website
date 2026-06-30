@@ -15,9 +15,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://log0.in"),
   title: "log0",
   description:
     "An intelligent incident copilot that turns raw logs into actionable incidents.",
+  openGraph: {
+    title: "log0 - from 10,000 logs to one incident",
+    description:
+      "An intelligent incident copilot that turns raw logs into actionable incidents.",
+    type: "website",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "log0" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "log0 - from 10,000 logs to one incident",
+    description:
+      "An intelligent incident copilot that turns raw logs into actionable incidents.",
+    images: ["/og.png"],
+  },
 };
 
 export default function RootLayout({
