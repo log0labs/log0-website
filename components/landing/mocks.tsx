@@ -58,8 +58,11 @@ export function TracesPanel() {
       <div className="flex h-28 items-end gap-[3px] px-4 sm:px-5">
         {Array.from({ length: 64 }).map((_, i) => {
           const h = 20 + ((i * 37) % 70);
+          // thin out the bars on small screens so they keep a real width
+          // instead of squeezing into 1px lines: ~14 on mobile, ~24 on sm.
+          const vis = i < 14 ? "" : i < 24 ? "hidden sm:block" : "hidden lg:block";
           return (
-            <div key={i} className="flex-1" style={{ height: `${h}%` }}>
+            <div key={i} className={`flex-1 ${vis}`} style={{ height: `${h}%` }}>
               <div className="h-full w-full rounded-sm bg-white/20" />
             </div>
           );
