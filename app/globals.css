@@ -107,3 +107,168 @@
 @utility hero-bg {
   background: radial-gradient(60% 60% at 50% 110%, #264d4c 0%, #020617 100%);
 }
+
+/* Smooth anchor scrolling on blog post pages only (scoped via :has to the
+   post body); respects reduced-motion. TOC clicks glide instead of jumping. */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.blog-prose) {
+    scroll-behavior: smooth;
+  }
+}
+
+/*
+  Blog post prose - typography for MDX bodies rendered on the cream landing
+  theme (see app/blog/[slug]/page.tsx). Kept local because the site has no
+  typography plugin and blog posts do not use the fumadocs UI layout. Code
+  blocks keep shiki's inline token colors + background; we only add chrome.
+*/
+.blog-prose {
+  color: #2a2420;
+  font-size: 17px;
+  line-height: 1.75;
+}
+.blog-prose > :first-child {
+  margin-top: 0;
+}
+.blog-prose h2 {
+  margin-top: 3rem;
+  margin-bottom: 1rem;
+  font-size: 1.6rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #1b1815;
+  scroll-margin-top: 6rem; /* clear the sticky nav on anchor jump */
+}
+.blog-prose h3 {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: #1b1815;
+  scroll-margin-top: 6rem;
+}
+.blog-prose p {
+  margin-block: 1.25rem;
+}
+.blog-prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.blog-prose a:hover {
+  color: var(--accent-hover);
+}
+.blog-prose strong {
+  font-weight: 600;
+  color: #1b1815;
+}
+.blog-prose ul,
+.blog-prose ol {
+  margin-block: 1.25rem;
+  padding-left: 1.5rem;
+}
+.blog-prose ul {
+  list-style: disc;
+}
+.blog-prose ol {
+  list-style: decimal;
+}
+.blog-prose li {
+  margin-block: 0.5rem;
+}
+.blog-prose blockquote {
+  margin-block: 1.5rem;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  padding: 0.5rem 1.25rem;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+.blog-prose blockquote p {
+  margin-block: 0.5rem;
+}
+/* inline code only - block code (pre > code) opts out below */
+.blog-prose :not(pre) > code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.15em 0.4em;
+  border-radius: 0.3rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.88em;
+  color: #1b1815;
+}
+/* code block wrapper holds the language badge; margin lives here, not on pre */
+.blog-prose .blog-codeblock {
+  position: relative;
+  margin-block: 1.5rem;
+}
+.blog-prose .blog-codeblock-lang {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.7rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.66rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #9a9089;
+  pointer-events: none;
+  user-select: none;
+}
+.blog-prose pre {
+  margin-block: 0;
+  padding: 1rem 1.15rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  /* transparent so the code panel takes the page bg in both themes; tokens use
+     shiki's github-light palette (baked in as --shiki-light at compile time). */
+  background: transparent;
+  color: var(--shiki-light, #24292e);
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+/* surface shiki's per-token light colors (set as CSS vars at compile time).
+   The blog renders on a fixed cream theme, so always use the light palette -
+   even when the site-wide theme provider puts .dark on <html>. */
+.blog-prose pre span {
+  color: var(--shiki-light);
+}
+.blog-prose pre code {
+  background: transparent;
+  padding: 0;
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+.blog-prose img {
+  margin-block: 2rem;
+  width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: #fff;
+}
+.blog-prose hr {
+  margin-block: 2.5rem;
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+.blog-prose table {
+  width: 100%;
+  margin-block: 1.5rem;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  display: block;
+  overflow-x: auto;
+}
+.blog-prose th,
+.blog-prose td {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+.blog-prose th {
+  background: rgba(0, 0, 0, 0.04);
+  font-weight: 600;
+  color: #1b1815;
+}
