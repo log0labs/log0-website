@@ -39,9 +39,7 @@ export default function Nav() {
             Docs
           </a>
           <a
-            href={links.blogSeries}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={links.blog}
             className="text-[15px] text-[#1b1815]/80 transition-colors hover:text-[#1b1815]"
           >
             Blog
@@ -108,9 +106,7 @@ export default function Nav() {
             </li>
             <li>
               <a
-                href={links.blogSeries}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={links.blog}
                 onClick={() => setOpen(false)}
                 className="text-[15px] text-[#1b1815]/80"
               >
