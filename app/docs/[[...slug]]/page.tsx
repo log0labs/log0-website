@@ -68,8 +68,27 @@ export async function generateMetadata(
 
   if (!page) notFound();
 
+  const title = page.data.title;
+  const description = page.data.description;
+  const pageUrl = `${links.siteUrl}${page.url}`;
+  const ogImage = `${links.siteUrl}/images/og-dark.png`;
+
   return {
-    title: page.data.title,
-    description: page.data.description,
+    title,
+    description,
+    alternates: { canonical: pageUrl },
+    openGraph: {
+      type: "article",
+      title,
+      description,
+      url: pageUrl,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: "log0 docs" }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage],
+    },
   };
 }

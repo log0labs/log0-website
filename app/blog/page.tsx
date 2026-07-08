@@ -11,11 +11,28 @@ import Footer from "@/components/landing/Footer";
 import { getSortedPosts, type BlogPage } from "@/lib/blog/source";
 import { links } from "@/lib/links";
 
+const BLOG_TITLE = "The log0 build log";
+const BLOG_DESCRIPTION =
+  "Field notes on log intelligence and incident management at scale - architecture decisions, load-test findings, and hard-won lessons building a multi-tenant incident platform solo.";
+const BLOG_OG_IMAGE = `${links.siteUrl}/images/og-dark.png`;
+
 export const metadata: Metadata = {
   title: "Blog - log0",
-  description:
-    "Field notes on log intelligence and incident management at scale - the log0 build log.",
+  description: BLOG_DESCRIPTION,
   alternates: { canonical: `${links.siteUrl}/blog` },
+  openGraph: {
+    type: "website",
+    title: BLOG_TITLE,
+    description: BLOG_DESCRIPTION,
+    url: `${links.siteUrl}/blog`,
+    images: [{ url: BLOG_OG_IMAGE, width: 1600, height: 840, alt: BLOG_TITLE }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: BLOG_TITLE,
+    description: BLOG_DESCRIPTION,
+    images: [BLOG_OG_IMAGE],
+  },
 };
 
 function formatDate(iso: string): string {
