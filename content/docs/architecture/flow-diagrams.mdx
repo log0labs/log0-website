@@ -66,7 +66,7 @@ flowchart TD
     A[payment-service\nsends log] -->|POST /api/v1/logs\nX-SERVICE-NAME: payment-service\nX-ENVIRONMENT: production\nX-API-KEY: ak_xxxx| B
 
     B[Ingestion Gateway :8080]
-    B --> B1{Authenticate + validate\nX-API-KEY → tenantId (auth-service, cached)\nrequire X-SERVICE-NAME, X-ENVIRONMENT}
+    B --> B1{Authenticate + validate\nX-API-KEY to tenantId via auth-service, cached\nrequire X-SERVICE-NAME, X-ENVIRONMENT}
     B1 -->|Missing or invalid API key| E0[401 Unauthorized]
     B1 -->|Missing service/env header| E1[400 Bad Request]
     B1 -->|Authenticated| B2{Validate payload\n@Valid on LogIngestionRequest}
@@ -324,7 +324,7 @@ sequenceDiagram
     participant K as Kafka (raw-logs)
 
     SVC->>FLT: POST /api/v1/logs (X-SERVICE-NAME: payment-service, X-API-KEY: ak_xxxx)
-    FLT->>AUTH: validate X-API-KEY (cached; auth call only on cache miss)
+    FLT->>AUTH: validate X-API-KEY (cached, auth call only on a miss)
     AUTH-->>FLT: 200 tenantId=acme-corp  (or 401 on invalid key)
     FLT->>FLT: set request attribute validatedTenantId=acme-corp
 

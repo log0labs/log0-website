@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
-    "build": "next build",
+    "lint:mermaid": "node scripts/lint-mermaid.mjs",
+    "build": "npm run lint:mermaid && next build",
     "start": "next start --port 3000",
     "lint": "eslint"
   },
@@ -48,6 +49,7 @@
     "@types/svg-pan-zoom": "^3.3.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "jsdom": "^29.1.1",
     "prettier": "^3.8.1",
     "tailwindcss": "^4",
     "typescript": "^5"
