@@ -65,7 +65,7 @@ graph TD
         FE[log0 Web App :3000\nReact · TypeScript]
     end
 
-    C1 -->|POST /api/v1/logs\nX-TENANT-ID: acme-corp\nX-API-KEY: ak_xxxx| IG
+    C1 -->|POST /api/v1/logs\nX-API-KEY: ak_xxxx| IG
     C2 -->|POST /api/v1/logs| IG
     C3 -->|POST /api/v1/logs| IG
 
@@ -132,7 +132,7 @@ graph TD
     end
 
     subgraph log0Core["log0 Shared Infrastructure"]
-        IG["Ingestion Gateway\nExtracts X-TENANT-ID → RequestContext"]
+        IG["Ingestion Gateway\nValidates X-API-KEY → derives tenantId"]
         K["Redpanda\nPartitioned by tenantId\n(ordering guarantee per tenant)"]
         NS["Normalization Service\nPasses tenantId through all events"]
         IS["Incident Service\nALL queries filtered by tenant_id"]
@@ -140,8 +140,8 @@ graph TD
         CH["ClickHouse\ntenant_id on every row"]
     end
 
-    A_SVC -->|X-TENANT-ID: acme-corp| IG
-    B_SVC -->|X-TENANT-ID: startup-xyz| IG
+    A_SVC -->|X-API-KEY: acme key| IG
+    B_SVC -->|X-API-KEY: xyz key| IG
 
     IG --> K
     K --> NS
@@ -158,7 +158,7 @@ graph TD
 
 ### How Isolation Works
 
-Tenant context is established at the boundary (the `X-TENANT-ID` header) and carried through the entire pipeline as a first-class field on every event.
+Tenant context is established at the boundary: the gateway validates the `X-API-KEY` against auth-service and derives the owning `tenantId` from the key (the client never asserts its own tenant), then carries it through the entire pipeline as a first-class field on every event.
 
 **Kafka isolation:** Kafka messages are keyed by `tenantId`. This routes all events for the same tenant to the same partition, guaranteeing that logs from a single tenant are processed in the order they were received. A burst from `acme-corp` does not affect `startup-xyz`'s partition.
 

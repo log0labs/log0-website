@@ -541,7 +541,6 @@ Send a single test log to confirm the ingestion gateway accepts it. A `202 Accep
     ```bash
     curl -X POST http://localhost:8080/api/v1/logs \
       -H "Content-Type: application/json" \
-      -H "X-TENANT-ID: 550e8400-e29b-41d4-a716-446655440000" \
       -H "X-SERVICE-NAME: payment-service" \
       -H "X-ENVIRONMENT: production" \
       -H "X-API-KEY: test-key-123" \
@@ -566,7 +565,6 @@ Send a single test log to confirm the ingestion gateway accepts it. A `202 Accep
       -Method POST `
       -ContentType "application/json" `
       -Headers @{
-          "X-TENANT-ID"    = "550e8400-e29b-41d4-a716-446655440000"
           "X-SERVICE-NAME" = "payment-service"
           "X-ENVIRONMENT"  = "production"
           "X-API-KEY"      = "test-key-123"
@@ -578,7 +576,6 @@ Send a single test log to confirm the ingestion gateway accepts it. A `202 Accep
     ```cmd
     curl -X POST http://localhost:8080/api/v1/logs ^
       -H "Content-Type: application/json" ^
-      -H "X-TENANT-ID: 550e8400-e29b-41d4-a716-446655440000" ^
       -H "X-SERVICE-NAME: payment-service" ^
       -H "X-ENVIRONMENT: production" ^
       -H "X-API-KEY: test-key-123" ^

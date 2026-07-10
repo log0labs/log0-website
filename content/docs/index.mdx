@@ -30,7 +30,6 @@ Send your first log to a running ingestion gateway:
 ```bash
 curl -X POST http://localhost:8080/api/v1/logs \
   -H "Content-Type: application/json" \
-  -H "X-TENANT-ID: your-tenant-id" \
   -H "X-SERVICE-NAME: payment-service" \
   -H "X-ENVIRONMENT: production" \
   -H "X-API-KEY: your-api-key" \

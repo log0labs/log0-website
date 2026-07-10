@@ -63,12 +63,13 @@ This diagram traces the full pipeline from the `payment-service` HTTP call to th
 
 ```mermaid
 flowchart TD
-    A[payment-service\nsends log] -->|POST /api/v1/logs\nX-TENANT-ID: acme-corp\nX-SERVICE-NAME: payment-service\nX-API-KEY: ak_xxxx| B
+    A[payment-service\nsends log] -->|POST /api/v1/logs\nX-SERVICE-NAME: payment-service\nX-ENVIRONMENT: production\nX-API-KEY: ak_xxxx| B
 
     B[Ingestion Gateway :8080]
-    B --> B1{Validate headers\nX-TENANT-ID, X-SERVICE-NAME\nX-ENVIRONMENT, X-API-KEY}
-    B1 -->|Missing or blank| E1[400 Bad Request]
-    B1 -->|All present| B2{Validate payload\n@Valid on LogIngestionRequest}
+    B --> B1{Authenticate + validate\nX-API-KEY → tenantId (auth-service, cached)\nrequire X-SERVICE-NAME, X-ENVIRONMENT}
+    B1 -->|Missing or invalid API key| E0[401 Unauthorized]
+    B1 -->|Missing service/env header| E1[400 Bad Request]
+    B1 -->|Authenticated| B2{Validate payload\n@Valid on LogIngestionRequest}
     B2 -->|Invalid fields\nlevel > 20 chars\nmessage > 10K chars| E2[400 Validation Error]
     B2 -->|Valid| B3[Build RawLogEvent\neventId: UUID.randomUUID\nreceivedAt: Instant.now]
 
@@ -309,23 +310,26 @@ The entire assignment workflow - from alert to acknowledgment - happens without 
 
 ## Multi-Tenant Request Propagation
 
-This sequence shows exactly how tenant context is extracted from the HTTP request and carried through to Kafka - tracing the internal call chain inside the Ingestion Gateway.
+This sequence shows how tenant context is derived from the validated API key and carried through to Kafka - tracing the internal call chain inside the Ingestion Gateway. The client never asserts its own tenant.
 
 ```mermaid
 sequenceDiagram
     participant SVC as payment-service
+    participant FLT as ApiKeyAuthFilter
+    participant AUTH as Auth Service (8086)
     participant CTL as LogIngestionController
-    participant RHE as RequestHeaderExtractor
     participant RC as RequestContext
     participant SVC2 as LogIngestionServiceImpl
     participant PROD as RawLogProducer
     participant K as Kafka (raw-logs)
 
-    SVC->>CTL: POST /api/v1/logs (X-TENANT-ID: acme-corp, X-SERVICE-NAME: payment-service, X-API-KEY: ak_xxxx)
+    SVC->>FLT: POST /api/v1/logs (X-SERVICE-NAME: payment-service, X-API-KEY: ak_xxxx)
+    FLT->>AUTH: validate X-API-KEY (cached; auth call only on cache miss)
+    AUTH-->>FLT: 200 tenantId=acme-corp  (or 401 on invalid key)
+    FLT->>FLT: set request attribute validatedTenantId=acme-corp
 
-    CTL->>RHE: extractContext(HttpServletRequest)
-    RHE->>RHE: requireHeader for X-TENANT-ID, X-SERVICE-NAME, X-ENVIRONMENT, X-API-KEY
-    RHE->>RC: new RequestContext(tenantId=acme-corp, serviceName=payment-service, environment=production)
+    FLT->>CTL: forward authenticated request
+    CTL->>RC: new RequestContext(tenantId=acme-corp [derived], serviceName, environment)
     RC-->>CTL: RequestContext
 
     CTL->>SVC2: ingest(logRequest, context)
@@ -520,18 +524,18 @@ sequenceDiagram
     participant AS as Auth Service (8086)
     participant PG as PostgreSQL
 
-    SDK->>IG: POST /api/v1/logs<br/>X-TENANT-ID: uuid<br/>X-API-KEY: ak_rawkey123
+    SDK->>IG: POST /api/v1/logs<br/>X-API-KEY: ak_rawkey123
 
-    IG->>AS: POST /api/v1/auth/validate-key<br/>{ tenantId, apiKey: ak_rawkey123 }
+    IG->>AS: POST /api/v1/auth/validate-key<br/>X-Api-Key: ak_rawkey123
     AS->>AS: SHA-256(ak_rawkey123) → keyHash
-    AS->>PG: SELECT * FROM api_key<br/>WHERE tenant_id = ? AND key_hash = ?<br/>AND is_active = true<br/>AND (expires_at IS NULL OR expires_at > NOW())
+    AS->>PG: SELECT tenant_id FROM api_key<br/>WHERE key_hash = ?<br/>AND active = true
 
     alt key not found or inactive
         AS-->>IG: 401 Unauthorized
         IG-->>SDK: 401 Unauthorized
     else valid key
-        AS-->>IG: 200 OK
-        IG->>IG: publish to Kafka raw-logs topic
+        AS-->>IG: 200 { tenantId }
+        IG->>IG: stamp event with derived tenantId, publish to raw-logs
         IG-->>SDK: 202 Accepted
     end
 ```
