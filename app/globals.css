@@ -5,12 +5,55 @@
   --log0-primary: #7fc8ff;
   --log0-secondary: #cce9ff;
   --site-text: #ffffff;
+
+  /* Single source of truth for every scrollbar on the site. Thin + translucent,
+     transparent track. Thumb is theme-aware (light thumb on the dark default bg).
+     Any surface that pins its own bg (e.g. the cream .blog-prose) just re-sets
+     these two vars; the styling below reads them everywhere. */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.22);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.35);
 }
 
 @media (prefers-color-scheme: light) {
   :root {
     --site-bg: #ffffff;
     --site-text: #000000;
+    --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+    --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
+  }
+}
+
+/* Class-based dark (fumadocs/next-themes toggle) - keep the light thumb. */
+.dark {
+  --scrollbar-thumb: rgba(255, 255, 255, 0.22);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.35);
+}
+
+/* Global scrollbar chrome - one block, driven by the vars above.
+   Chrome/Edge/Safari get the exact 4px via ::-webkit-scrollbar. We do NOT set
+   the standard scrollbar-width/scrollbar-color on those, because Chrome (121+)
+   prefers the standard props when present and would ignore the 4px webkit rule
+   (rendering its ~11px "thin" bar instead). Firefox has no ::-webkit-scrollbar,
+   so the standard props are scoped to it via @supports. */
+*::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+@supports not selector(::-webkit-scrollbar) {
+  html,
+  .blog-surface {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
   }
 }
 
@@ -227,6 +270,14 @@
   overflow-x: auto;
   font-size: 0.875rem;
   line-height: 1.6;
+}
+/* The blog is a fixed cream surface even when the site theme is dark, so force
+   the dark thumb across the whole page (TOC, prose, tables). Set on the page
+   root so every scrollbar inside inherits it; overriding the two vars is enough
+   - the global block reads them; scrollbar-color is set for Firefox. */
+.blog-surface {
+  --scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
 }
 /* surface shiki's per-token light colors (set as CSS vars at compile time).
    The blog renders on a fixed cream theme, so always use the light palette -

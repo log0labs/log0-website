@@ -62,7 +62,7 @@ log0 is not a web of services calling each other. It is a single linear stream. 
 Read top to bottom, that is the entire data path:
 
 1. **ingestion-gateway** takes the HTTP POST, does the minimum validation, writes the event to the `raw-logs` topic, and returns `202 Accepted`. It never waits for processing. That single decision is the subject of post 4 in this series, *Accept fast, never block*.
-2. **normalization-service** consumes `raw-logs`, parses each event into a stable shape, strips the dynamic values out of the message to build a template, computes the **fingerprint**, writes the full event to ClickHouse, and emits to `normalized-logs`. The fingerprint is discussed in post 2 in this series.
+2. **normalization-service** consumes `raw-logs`, parses each event into a stable shape, strips the dynamic values out of the message to build a template, computes the **fingerprint**, writes the full event to ClickHouse, and emits to `normalized-logs`. The fingerprint is discussed in [post 2 in this series](/blog/how-log0-deduplicates-logs-into-incidents).
 3. **clustering-service** consumes `normalized-logs` and counts occurrences per fingerprint inside a 5-minute tumbling window. When a window crosses 10 occurrences, it emits one `incident-events` message. Streaming aggregation is discussed in post 3 in this series.
 4. **incident-service** consumes `incident-events`, runs the incident through its state machine, and upserts it into PostgreSQL. Because the same event can arrive more than once, every write is idempotent. That is covered in post 10 in this series.
 5. **notification-service** consumes `notification-events` and posts a Slack Block Kit alert to the owning team.
@@ -86,7 +86,7 @@ log0 came down to a small number of decisions, each with a cost. The series is o
 fingerprint = SHA-256( service | messageTemplate | exceptionType | firstStackFrame )
 ```
 
-Same bug, different timeout value or request ID: same fingerprint, same incident. The cost is that a log format the templating regexes do not recognize will under-deduplicate. The failure mode is benign, it makes too many incidents (noisy but visible), never too few (a hidden, merged bug). We have discussed this in post 2 of this series.
+Same bug, different timeout value or request ID: same fingerprint, same incident. The cost is that a log format the templating regexes do not recognize will under-deduplicate. The failure mode is benign, it makes too many incidents (noisy but visible), never too few (a hidden, merged bug). We have discussed this in [post 2 of this series](/blog/how-log0-deduplicates-logs-into-incidents).
 
 **3. Multi-tenancy is a partition key, not a column.** Events are keyed by `tenantId` on the Kafka topics, which buys per-tenant ordering and noisy-neighbor isolation for free, and every stored row carries `tenant_id`. Isolation is structural. The cost is partition skew when one tenant is far louder than the rest. As discussed in Post 8 of this series, I measured the skew rather than asserting it away.
 
@@ -131,7 +131,7 @@ Stating the limits is part of the design, not an apology for it.
 
 Each post takes one box on that diagram, or one of the five decisions, and goes deep: the problem, the naive version and why it broke (usually with a number), the fix, the real code, and the tradeoff. They stand alone, but they chain.
 
-If you came for the algorithms, start with post 2, the fingerprint. If you came for the systems engineering, start with post 6, the day a one-line change took the insert path from 40 to 4,185 rows per second.
+If you came for the algorithms, start with [post 2, the fingerprint](/blog/how-log0-deduplicates-logs-into-incidents). If you came for the systems engineering, start with post 6, the day a one-line change took the insert path from 40 to 4,185 rows per second.
 
 *Next: [post 1](/blog/green-does-not-mean-working), the bug that load testing found and health checks never could. The whole stack reported healthy while the ingestion path had never once been exercised end to end. Here is how a green dashboard lied, and what it cost.*
 

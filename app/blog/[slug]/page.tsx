@@ -78,7 +78,7 @@ export default async function BlogPostPage(props: PageProps<"/blog/[slug]">) {
 
   return (
     <div
-      className="min-h-screen overflow-x-clip bg-[#f4f1ea] font-sans text-[#1b1815]"
+      className="blog-surface min-h-screen overflow-x-clip bg-[#f4f1ea] font-sans text-[#1b1815]"
       style={
         {
           "--accent": ACCENT,
