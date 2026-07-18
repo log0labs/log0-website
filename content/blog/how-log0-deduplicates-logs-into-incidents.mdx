@@ -1,0 +1,191 @@
+---
+title: "Anatomy of a fingerprint: how log0 turns 115,489 log lines into one incident"
+description: "How log0 decides a flood of log lines is one bug, not ten thousand: deterministic SHA-256 fingerprinting, no machine learning, O(1) per event. The exact code, the ordering bug that corrupts it, and the failure mode chosen on purpose."
+slug: how-log0-deduplicates-logs-into-incidents
+date: "2026-07-18"
+order: 2
+keywords:
+  - fingerprint
+  - deduplication
+  - sha-256
+  - log processing
+  - incident management
+  - observability
+  - system design
+  - distributed systems
+coverDark: /blog/covers/cover-02-dark.png
+coverLight: /blog/covers/cover-02-light.png
+seoTitle: "Anatomy of a fingerprint: how log0 deduplicates logs into incidents"
+seoDescription: "log0 collapses 115,489 log lines into one incident with a deterministic SHA-256 fingerprint, no ML, O(1) per event. The exact code, the regex ordering bug that corrupts it, and the under-dedup failure mode chosen on purpose."
+canonical: self
+links:
+  hashnode: https://engineeringwithashmit.hashnode.dev/how-log0-deduplicates-logs-into-incidents
+  medium: https://medium.com/@ashmitjsg/how-log0-turns-115-489-log-lines-into-one-incident-2746310361ca
+  commune: https://usecommune.com/n/engineeringwithashmit/a/anatomy-of-a-fingerprint-how-log0-turns-115-489-log-lines-in
+---
+
+> The core job of an [incident platform](https://log0.in/) is deciding that a flood of log lines is one bug, not ten thousand. log0 does it with no machine learning, deterministically, in O(1) per event. The whole trick is what gets stripped out of a message before hashing. Here is the exact code, the one ordering bug that bites if it is wrong, and the failure mode I chose on purpose.
+
+This is post 2 in a series on building [log0](/blog/building-log0-a-multi-tenant-incident-platform-on-kafka). [Post 1](/blog/green-does-not-mean-working) was about getting a log line to reach the system. This one is about what happens the instant it arrives: how log0 decides which incident, if any, this line belongs to.
+
+---
+
+## The number this has to earn
+
+In a load test, log0 ingested **115,489 log lines** all carrying one error pattern and created **exactly one incident**. A deduplication ratio of 115,489 to 1. Push ten distinct patterns through the same run and ten incidents come out; a hundred patterns, a hundred incidents. Incidents out always equals distinct bugs in, regardless of how loud each one is.
+
+![Logs ingested per incident created, by number of distinct error templates: 1 template yields 115,489:1, 10 templates 8,760:1, 50 templates 1,860:1, 100 templates 967:1, on a log scale](/blog/charts/post02-dedup-ratio.svg)
+
+That is the entire value of the product in one chart. A bug that fires 115,489 times pages once. The ratio falls as the number of distinct bugs rises, exactly as it should: more real problems, more incidents. What never happens is one bug fragmenting into thousands of incidents, or two different bugs silently merging into one. The mechanism that guarantees both is the fingerprint.
+
+---
+
+## The naive version, and why it does not work
+
+The obvious first idea is to group by the log message string. Identical message, same incident. It falls apart on the first real log line, because production error messages are almost never identical:
+
+```
+Connection timeout to payment-gateway after 30000ms
+Connection timeout to payment-gateway after 28514ms
+Connection timeout to payment-gateway after 31003ms
+```
+
+Same bug, three times. Group by the raw string and that is three incidents, then thirty thousand, one per slightly different timeout value, request ID, IP address, or user ID. String equality treats the variable data as if it were the signal. It is the opposite: the variable data is exactly the noise you want to throw away.
+
+The next idea is fuzzy matching, edit distance or an embedding model, to call two messages "similar enough." That works until something has to explain why two incidents merged, until a similarity threshold has to be tuned per log format, or a model inference has to be paid for on every single log line at ingestion rates. It is non-deterministic, expensive, and unexplainable, three properties no one wants in the component that decides who gets paged.
+
+log0 takes the deterministic route. Strip the variable data out to get a stable structural template, then hash the template along with a few other stable fields. Same bug, same hash, every time, with a one-line explanation of why.
+
+---
+
+## The fingerprint, end to end
+
+A fingerprint is a SHA-256 hash of four stable fields joined by a pipe:
+
+```
+fingerprint = SHA-256( service | messageTemplate | exceptionType | firstStackFrame )
+```
+
+![Three log lines from one bug, differing in IP, UUID and number, strip down to one shared message template, join four stable fields pipe-delimited, SHA-256, then an O(1) map lookup collapses them to one incident](/blog/charts/diag-fingerprint.svg)
+
+Each field adds one dimension of "is this the same bug":
+
+- **service** scopes it. A `NullPointerException` in `payment-service` is a different incident from the same exception in `auth-service`. Same symptom, different system, different owner.
+- **messageTemplate** is the message with all dynamic values replaced by placeholders. This is where the de-noising happens, and it is the part with the subtle bug, below.
+- **exceptionType** separates two exception classes thrown from the same line. A `TimeoutException` and a `NullPointerException` out of `PaymentProcessor.charge` are two bugs, not one.
+- **firstStackFrame** pins it to the exact throw site, with the line number deliberately removed.
+
+The hash itself is unremarkable, standard SHA-256, 64 hex chars. Everything interesting happens before it, in deciding what string goes in.
+
+---
+
+## Building the template: order is the whole game
+
+Stripping dynamic values is three regex replacements. The catch is that the order is not interchangeable; get it wrong and the fingerprint silently corrupts.
+
+```java
+public String buildMessageTemplate(String message) {
+    if (message == null || message.isEmpty()) {
+        return "";
+    }
+
+    String template = UUID_PATTERN.matcher(message).replaceAll("<uuid>");
+    template = IP_PATTERN.matcher(template).replaceAll("<ip>");
+    template = NUMBER_PATTERN.matcher(template).replaceAll("<number>");
+
+    return template.trim();
+}
+```
+
+UUID first, then IP, then number. The reason is that all three are made of digits, and the most general pattern will eat the more specific ones if it runs first.
+
+`NUMBER_PATTERN` is `\d+`, any run of digits. Run it first on `192.168.1.1` and you get `<number>.<number>.<number>.<number>`, and `IP_PATTERN` never gets to match because there are no digits left. Run it first on a UUID and you shred the hex groups the same way. So the rule is most-specific-first: UUID (the most structured), then IP, then the catch-all number.
+
+Walk one message through it:
+
+```
+Input:  "Timeout from 192.168.1.1 after 30000ms, id=a3f4b2c1-1234-5678-abcd-ef0123456789"
+ UUID:  "Timeout from 192.168.1.1 after 30000ms, id=<uuid>"
+ IP:    "Timeout from <ip> after 30000ms, id=<uuid>"
+ Num:   "Timeout from <ip> after <number>ms, id=<uuid>"
+```
+
+Every log line from that bug, whatever its IP, timeout, or request ID, lands on that same final template. That is the collapse the dedup ratio is measuring.
+
+---
+
+## The stack frame: stable on purpose
+
+The first stack frame is the call site that threw. Only the first frame is used, because deeper frames vary with the request path that led there, while the throw site is stable for the same bug. And the line number is stripped:
+
+```java
+String firstLine = stackTrace.split("\n")[0].trim();
+firstLine = firstLine.replaceFirst("^at\\s+", "");  // remove "at " prefix
+firstLine = firstLine.replaceAll("\\(.*?\\)", "");  // remove (FileName.java:142)
+```
+
+```
+Input:  "at com.log0.PaymentProcessor.charge(PaymentProcessor.java:142)"
+Output: "com.log0.PaymentProcessor.charge"
+```
+
+The line number is removed on purpose. A refactor that shifts `PaymentProcessor.charge` from line 142 to 145 does not change the bug, so it must not change the fingerprint. If line numbers were part of the hash, every cosmetic edit above the throw site would fork a brand-new incident for a bug you already had open. Stripping the line number is the difference between a fingerprint that tracks a bug and one that tracks a source-file revision.
+
+---
+
+## Two small details that prevent silent collisions
+
+Two things in the final assembly look like boilerplate and are not.
+
+**The pipe delimiter is load-bearing.** The four fields are joined with `|`, not concatenated:
+
+```java
+String input = safe(service) + "|" + safe(template) + "|" + safe(exceptionType) + "|" + safe(firstFrame);
+```
+
+Without a delimiter, `("ab", "c")` and `("a", "bc")` both produce `"abc"` and therefore the same fingerprint, despite being different error patterns. The pipe keeps the field boundaries injective, so two different field splits can never collide into one hash.
+
+**Null becomes empty, never the text "null".** Every field goes through a `safe()` guard:
+
+```java
+private String safe(String s) {
+    return s == null ? "" : s;
+}
+```
+
+A null `service` must contribute the empty string, giving `"|template|..."`, not the literal four characters `"null"` giving `"null|template|..."`. Those are different hashes, and letting a null stringify would mean a missing field changes a bug's identity. The guard makes a missing field contribute nothing, which is what "missing" should mean.
+
+---
+
+## The tradeoff I chose on purpose
+
+No fingerprint scheme is perfect, and the honest question is not "can it be fooled" but "which way does it fail." This one fails toward noise, never toward silence.
+
+If a log format uses dynamic values the regexes do not recognize, say a hex token that is not a UUID, those values survive into the template, and two lines from the same bug get two templates and two fingerprints. The bug **under-deduplicates**: it produces more incidents than it should. That is annoying. It is also loud and visible, you see two incidents for one bug and you go widen a regex.
+
+The failure I refused to accept is the opposite: two genuinely different bugs collapsing into one fingerprint and one incident. That hides a real problem behind an already-open incident, and the miss surfaces when the second bug takes down something the first incident's owner was never looking at. Over-dedup is a silent miss; under-dedup is a visible nuisance. Given a forced choice, a monitoring system should be biased toward too many incidents, never too few. The design is biased that way deliberately.
+
+---
+
+## What is not done
+
+- **`exceptionType` is in the formula but currently passed as null.** The slot exists in `generate()` and contributes to the hash, but the normalizer does not yet parse the exception class out of the trace, so today it is always the empty string. Effect: two different exception types thrown from the same line currently share a fingerprint. It is a documented TODO; the wiring is half-built, the formula is ready for it.
+- **The template regexes cover UUID, IPv4, and integers.** Not IPv6, not hex IDs, not ISO timestamps embedded mid-message, not floats. Those pass through and can cause the benign under-dedup above. The right fix is a small, ordered, tested library of patterns, extended as real formats demand, not a guess at every format up front.
+- **The dedup ratios above are single-node, one-laptop measurements** (Docker Desktop, 512 MB per service, single Redpanda node, k6 at 50 VUs). They characterize the mechanism's behavior, not a throughput ceiling.
+
+---
+
+*Next: post 3, from fingerprints to an incident. A fingerprint names a bug, but one occurrence is not an incident; ten of them inside five minutes is. The next post is the clustering service that counts each fingerprint inside a tumbling event-time window and pages exactly once when a window crosses the threshold, the emit-once guard that keeps a loud bug to a single incident, and the in-memory window store that has no eviction and what that quietly costs.*
+
+---
+
+### Try log0
+
+log0 is the platform this series is built on, an open, multi-tenant incident pipeline you can run yourself or use hosted.
+
+- Platform: [log0.in](https://log0.in/)
+- Docs: [log0.in/docs](https://log0.in/docs)
+- Console: [console.log0.in](https://console.log0.in/)
+- charfield, the ASCII animation registry behind the log0 front ends: [charfield.log0.in](https://charfield.log0.in/)
+
+Written by Ashmit JaiSarita Gupta. Find me on [LinkedIn](https://www.linkedin.com/in/ashmitjsg/), [GitHub](https://github.com/ashmitjsg), and [X](https://twitter.com/ashmitjsg), and read the rest of the series on [Hashnode](https://engineeringwithashmit.hashnode.dev/series/log0).
