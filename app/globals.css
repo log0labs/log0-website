@@ -290,13 +290,26 @@
   padding: 0;
   font-family: var(--font-mono), ui-monospace, monospace;
 }
-.blog-prose img {
+.blog-figure {
+  display: block;
   margin-block: 2rem;
+}
+.blog-prose img {
+  display: block;
+  margin-block: 0;
   width: 100%;
   height: auto;
   border-radius: 0.75rem;
   border: 1px solid rgba(0, 0, 0, 0.1);
   background: #fff;
+}
+.blog-figcaption {
+  display: block;
+  margin-top: 0.75rem;
+  text-align: center;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: rgba(22, 19, 16, 0.6);
 }
 .blog-prose hr {
   margin-block: 2.5rem;

@@ -28,14 +28,23 @@ export function getBlogMDXComponents(components?: MDXComponents): MDXComponents 
     // charts are first-party SVGs in /public/blog/charts - render plain so the
     // feTurbulence grain filter works and we skip next/image SVG config. The
     // remarkImage plugin rewrites the markdown src to a static-import object,
-    // so unwrap `.src` back to a string URL.
-    img: ({ src, ...rest }) => {
+    // so unwrap `.src` back to a string URL. The markdown alt text doubles as a
+    // visible <figcaption> below the image (and stays the img's alt for a11y).
+    img: ({ src, alt, ...rest }) => {
       const url =
         typeof src === "object" && src !== null && "src" in src
           ? (src as { src: string }).src
           : (src as string);
-      // eslint-disable-next-line @next/next/no-img-element
-      return <img loading="lazy" alt="" {...rest} src={url} />;
+      const caption = typeof alt === "string" ? alt : "";
+      return (
+        <span className="blog-figure" role="figure">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img loading="lazy" alt={caption} {...rest} src={url} />
+          {caption ? (
+            <span className="blog-figcaption">{caption}</span>
+          ) : null}
+        </span>
+      );
     },
     ...components,
   };
