@@ -21,6 +21,7 @@ canonical: self
 links:
   hashnode: https://engineeringwithashmit.hashnode.dev/how-log0-deduplicates-logs-into-incidents
   medium: https://medium.com/@ashmitjsg/how-log0-turns-115-489-log-lines-into-one-incident-2746310361ca
+  linkedin: https://www.linkedin.com/pulse/anatomy-fingerprint-how-log0-turns-115489-log-lines-one-incident-yzeoc/
   commune: https://usecommune.com/n/engineeringwithashmit/a/anatomy-of-a-fingerprint-how-log0-turns-115-489-log-lines-in
 ---
 
@@ -175,7 +176,7 @@ The failure I refused to accept is the opposite: two genuinely different bugs co
 
 ---
 
-*Next: post 3, from fingerprints to an incident. A fingerprint names a bug, but one occurrence is not an incident; ten of them inside five minutes is. The next post is the clustering service that counts each fingerprint inside a tumbling event-time window and pages exactly once when a window crosses the threshold, the emit-once guard that keeps a loud bug to a single incident, and the in-memory window store that has no eviction and what that quietly costs.*
+*Next: [post 3, from fingerprints to an incident](/blog/from-fingerprints-to-an-incident-counting-in-windows). A fingerprint names a bug, but one occurrence is not an incident; ten of them inside five minutes is. The next post is the clustering service that counts each fingerprint inside a tumbling event-time window and pages exactly once when a window crosses the threshold, the emit-once guard that keeps a loud bug to a single incident, and the in-memory window store that has no eviction and what that quietly costs.*
 
 ---
 
@@ -188,4 +189,4 @@ log0 is the platform this series is built on, an open, multi-tenant incident pip
 - Console: [console.log0.in](https://console.log0.in/)
 - charfield, the ASCII animation registry behind the log0 front ends: [charfield.log0.in](https://charfield.log0.in/)
 
-Written by Ashmit JaiSarita Gupta. Find me on [LinkedIn](https://www.linkedin.com/in/ashmitjsg/), [GitHub](https://github.com/ashmitjsg), and [X](https://twitter.com/ashmitjsg), and read the rest of the series on [Hashnode](https://engineeringwithashmit.hashnode.dev/series/log0).
+Written by [Ashmit JaiSarita Gupta](https://ashmitjsg.vercel.app/). Find me on [LinkedIn](https://www.linkedin.com/in/ashmitjsg/), [GitHub](https://github.com/ashmitjsg), and [X](https://twitter.com/ashmitjsg), and read the rest of the series on [Hashnode](https://engineeringwithashmit.hashnode.dev/series/log0).

@@ -20,8 +20,8 @@ seoDescription: "How log0 collapses a flood of duplicate error logs into one own
 canonical: self
 links:
   hashnode: https://engineeringwithashmit.hashnode.dev/building-log0-a-multi-tenant-incident-platform-on-kafka
-  commune: https://usecommune.com/n/engineeringwithashmit/a/building-log0-a-multi-tenant-incident-platform-on-kafka
   medium: https://ashmitjsg.medium.com/building-log0-a-multi-tenant-incident-platform-on-kafka-b2341aa4863d
+  commune: https://usecommune.com/n/engineeringwithashmit/a/building-log0-a-multi-tenant-incident-platform-on-kafka
   linkedin: https://www.linkedin.com/pulse/building-log0-multi-tenant-incident-platform-kafka-log0-4sopf
 ---
 
@@ -63,7 +63,7 @@ Read top to bottom, that is the entire data path:
 
 1. **ingestion-gateway** takes the HTTP POST, does the minimum validation, writes the event to the `raw-logs` topic, and returns `202 Accepted`. It never waits for processing. That single decision is the subject of post 4 in this series, *Accept fast, never block*.
 2. **normalization-service** consumes `raw-logs`, parses each event into a stable shape, strips the dynamic values out of the message to build a template, computes the **fingerprint**, writes the full event to ClickHouse, and emits to `normalized-logs`. The fingerprint is discussed in [post 2 in this series](/blog/how-log0-deduplicates-logs-into-incidents).
-3. **clustering-service** consumes `normalized-logs` and counts occurrences per fingerprint inside a 5-minute tumbling window. When a window crosses 10 occurrences, it emits one `incident-events` message. Streaming aggregation is discussed in post 3 in this series.
+3. **clustering-service** consumes `normalized-logs` and counts occurrences per fingerprint inside a 5-minute tumbling window. When a window crosses 10 occurrences, it emits one `incident-events` message. Streaming aggregation is discussed in [post 3 in this series](/blog/from-fingerprints-to-an-incident-counting-in-windows).
 4. **incident-service** consumes `incident-events`, runs the incident through its state machine, and upserts it into PostgreSQL. Because the same event can arrive more than once, every write is idempotent. That is covered in post 10 in this series.
 5. **notification-service** consumes `notification-events` and posts a Slack Block Kit alert to the owning team.
 6. **ai-service** attaches a root-cause summary out of band, via an async callback, so a slow model never blocks the alert.
@@ -146,4 +146,4 @@ log0 is the platform this series is built on, an open, multi-tenant incident pip
 - Console: [console.log0.in](https://console.log0.in/)
 - charfield, the ASCII animation registry behind the log0 front ends: [charfield.log0.in](https://charfield.log0.in/)
 
-Written by Ashmit JaiSarita Gupta. Find me on [LinkedIn](https://www.linkedin.com/in/ashmitjsg/), [GitHub](https://github.com/ashmitjsg), and [X](https://twitter.com/ashmitjsg), and read the rest of the series on [Hashnode](https://engineeringwithashmit.hashnode.dev/series/log0).
+Written by [Ashmit JaiSarita Gupta](https://ashmitjsg.vercel.app/). Find me on [LinkedIn](https://www.linkedin.com/in/ashmitjsg/), [GitHub](https://github.com/ashmitjsg), and [X](https://twitter.com/ashmitjsg), and read the rest of the series on [Hashnode](https://engineeringwithashmit.hashnode.dev/series/log0).

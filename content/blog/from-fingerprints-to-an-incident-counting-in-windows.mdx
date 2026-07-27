@@ -1,0 +1,157 @@
+---
+title: "From fingerprints to an incident: counting in windows, paging once"
+description: "A fingerprint names a bug; ten of them inside five minutes is an incident. How log0's clustering service counts in tumbling event-time windows, emits exactly once per window, and the two failure modes of an in-memory store with no eviction."
+slug: from-fingerprints-to-an-incident-counting-in-windows
+date: "2026-07-25"
+order: 3
+keywords:
+  - clustering
+  - windowed aggregation
+  - kafka
+  - incident management
+  - observability
+  - system design
+  - stream processing
+  - multi-tenant
+coverDark: /blog/covers/cover-03-dark.png
+coverLight: /blog/covers/cover-03-light.png
+seoTitle: "From fingerprints to an incident: log0's windowed clustering"
+seoDescription: "log0 counts each fingerprint inside a 5-minute tumbling window and pages once at ten occurrences. The emit-once guard, p50 403ms detection, and two honest failure modes of an in-memory window store."
+canonical: self
+links:
+  medium: https://ashmitjsg.medium.com/from-fingerprints-to-an-incident-log0s-windowed-clustering-ccc09c13ea36
+---
+
+> A fingerprint names a bug. It does not decide that the bug is worth waking someone for. That decision is the clustering service: it counts each fingerprint inside a five-minute tumbling window keyed on event time, and the first time a window crosses ten occurrences it emits exactly one `incident-events` message, then never emits for that window again. A same-clock probe puts the whole path, first log to incident row, at **p50 403ms**. The mechanism is a `ConcurrentHashMap` and a synchronized boolean. This post is the counter, the emit-once guard, and the two honest failure modes that fall out of doing it in memory with no eviction and a hard window boundary.
+
+This is post 3 in a series on building [log0](/blog/building-log0-a-multi-tenant-incident-platform-on-kafka). [Post 2](/blog/how-log0-deduplicates-logs-into-incidents) covered how a log line collapses to a stable fingerprint. This one is about what happens to that fingerprint next: how a stream of identical errors becomes one counted, thresholded, deduplicated incident, and why the counting is the part that decides whether anyone gets paged.
+
+---
+
+## One occurrence is not an incident
+
+The fingerprint already solved deduplication of identity: ten thousand lines of the same bug share one hash. But identity is not severity. A bug that throws once at 3 AM and never again is noise. The same bug throwing ten times in a minute is an incident. Something has to count, and counting needs two boundaries: which occurrences belong together, and how many of them is enough.
+
+log0 answers both with three numbers, and they live in `ClusteringConfig`:
+
+```java
+private int occurrenceThreshold = 10;       // page when a window reaches this
+private int windowDurationMinutes = 5;      // tumbling window width
+private int maxTopMessages = 10;            // sample messages carried on the incident
+```
+
+Ten occurrences of one fingerprint inside one five-minute window emits an incident. Nine does not. The window is tumbling, not sliding: time is chopped into fixed five-minute blocks aligned to the clock, and every occurrence falls into exactly one block. That choice is what makes the counter O(1) per event and the failure modes legible, and it is also where the first sharp edge is.
+
+---
+
+## The key is the whole design
+
+Every decision about what counts together is compressed into one map key. `ClusterKey.of` builds it:
+
+```
+key = tenantId : fingerprint : floor(eventTime / 5min)
+```
+
+![Each normalized log is bucketed by tenant plus fingerprint plus a five-minute tumbling window on event time; the bucket that reaches ten emits one incident-events message and then markIncidentEmitted closes that bucket forever](/blog/charts/diag-clustering-window.svg)
+
+Three fields, and each one earns its place. **tenantId** keeps one customer's flood from ever counting toward another's incident; the count is per tenant by construction, not by a filter. **fingerprint** is the bug identity from post 2. And the third field is the window: the event's own timestamp, floor-aligned to a five-minute boundary.
+
+```java
+long bucketMinutes = timestamp.truncatedTo(ChronoUnit.MINUTES).getEpochSecond() / 60;
+long alignedMinutes = (bucketMinutes / windowDurationMinutes) * windowDurationMinutes;
+```
+
+That floor-division is the tumbling window. `00:00` through `00:04:59` all map to bucket `00:00`; `00:05:00` starts a fresh bucket with a fresh counter. Two occurrences of the same bug in the same tenant inside the same five minutes produce the same key and increment the same counter. Cross any one of the three boundaries, a different tenant, a different bug, or the next five-minute block, and it is a different counter that knows nothing about the first.
+
+The window is keyed on **event time**, the timestamp the log carries, not the wall-clock time the clustering service happened to read it. That is the right choice for correctness, because a backlog draining late should still bucket each event where it truly happened, not pile a delayed burst into whichever window the consumer caught up in. It is also the source of the boundary failure mode below.
+
+---
+
+## The counter and the emit-once guard
+
+The state is deliberately boring. `InMemoryOccurrenceStore` is a `ConcurrentHashMap<ClusterKey, OccurrenceWindow>`, and each `OccurrenceWindow` holds a count, a sample of recent messages, and a single boolean. `FingerprintClusterer.cluster()` is the whole hot path:
+
+```java
+OccurrenceWindow window = occurrenceStore.increment(key, event.getMessage());
+if (window.getCount() >= config.getOccurrenceThreshold() && window.markIncidentEmitted()) {
+    incidentEventProducer.publish(buildIncidentEvent(event, window));
+}
+```
+
+Two conditions, and the `&&` order matters. The count check is the obvious one: has this window reached ten. The second is the one that makes the system usable. `markIncidentEmitted()` is synchronized and returns `true` exactly once:
+
+```java
+public synchronized boolean markIncidentEmitted() {
+    if (incidentEmitted) {
+        return false;
+    }
+    incidentEmitted = true;
+    return true;
+}
+```
+
+The tenth occurrence flips the flag and emits. The eleventh, the twelfth, the ten-thousandth all increment the count and re-check the threshold, but `markIncidentEmitted()` now returns `false`, so nothing is emitted. One window, one incident, regardless of how loud the bug gets after it trips. This is the same guarantee the fingerprint gives in the identity dimension, now in the time dimension: the fingerprint stops a bug fragmenting into thousands of incidents by message text, and the emit-once guard stops one window fragmenting into thousands of incidents by occurrence count.
+
+The count does not stop climbing after the emit, and that is intentional. Occurrences eleven and up keep accumulating, because the authoritative total for the incident is recomputed downstream from ClickHouse anyway; the in-window count exists only to make the page-or-not decision. The synchronized boolean is the cheapest possible thing that turns "this is a real incident" into an event exactly once.
+
+---
+
+## What it costs end to end: p50 403ms
+
+The point of all of this is to page fast when a real burst arrives. A same-clock probe measures exactly that: it fires ten identical-fingerprint logs at the gateway to trip one window, then polls Postgres until the incident row appears, repeated for n=60. Because the send and the poll share one clock, the number is honest end to end, ingest to incident.
+
+The distribution is tight: **mean 405ms, p50 403ms, p99 477ms**, almost everything between 380 and 440ms, one outlier near 477. The full histogram lives in post 10 in this series, where it belongs to incident creation, but the number is a clustering number first: most of that 403ms is the event crossing three Kafka topics and three services, and the clustering decision itself, the increment and the threshold check, is a hash-map lookup that costs nothing measurable next to the hops. Detection is eventually consistent and lands in well under half a second on this hardware.
+
+---
+
+## Failure mode one: a burst that straddles a boundary never pages
+
+A tumbling window has hard edges, and event time decides which side of an edge an occurrence lands on. That makes one specific burst invisible. I measured it directly: eight trials per split ratio, a distinct fingerprint each trial, exactly ten identical errors, split across two adjacent windows by their event timestamps, then poll Postgres for the incident.
+
+![One burst of ten identical errors split across two adjacent five-minute windows by event time; the ten-zero case pages eight of eight, and every split from nine-one down to five-five pages zero of eight, because no single bucket reaches the threshold of ten](/blog/charts/post-clustering-boundary.svg)
+
+When all ten land in one window, **10:0**, the window hits the threshold and pages, **8 of 8 trials**. Every split, **9:1, 8:2, 7:3, 6:4, 5:5**, pages **0 of 8**. Nine occurrences in the first window and one in the next is nine and one, and neither bucket reaches ten, so the burst of ten genuinely identical errors creates zero incidents. The counters are correct; each holds the true count for its own window. The threshold is evaluated per window, and a burst unlucky enough to land on a boundary is under-counted into silence.
+
+This is the dishonest-by-omission failure, the opposite of the fingerprint's. The fingerprint fails toward noise: too many incidents, loud and visible. The window boundary fails toward silence: a real burst that should have paged does not, and nothing tells you. A sliding window or a small grace overlap would close most of this gap; the tumbling window was chosen for its O(1) keying and its legibility, and this is the bill for that choice. It is on the list at the end, named, not hidden.
+
+---
+
+## Failure mode two: the store has no eviction
+
+The second cost is memory, and it is the one that bites under sustained load. `InMemoryOccurrenceStore` never evicts. Its own javadoc says so: every distinct `(tenant, fingerprint, window)` key is a permanent entry in the map, and nothing ever removes a window after its five minutes pass. As long as new fingerprints keep arriving, the map keeps growing.
+
+I drove that on purpose. Pushing **710,439 unique fingerprints** through the pipeline, one new fingerprint per request, each one a brand-new map entry, and sampled the clustering container's memory against the count of distinct windows it had consumed.
+
+![Clustering memory climbs linearly at about 810 bytes per distinct window, from 176 MiB to 484 MiB across roughly 398,000 windows, extrapolates to the 512 MiB container cap at about 434,000 windows, and then freezes: the consumed offset stops advancing, detection silently halts, with no eviction and no recovery](/blog/charts/post-clustering-memory.svg)
+
+The climb is dead linear, about **810 bytes per distinct window**, exactly what an unbounded map predicts: 176 MiB at startup, 259 at 111k windows, 371 at 257k, 484 at 398k. Extrapolate the line and it meets the **512 MiB container cap at roughly 434,000 windows**. What happens there is worse than a crash. The consumer **stops advancing its offset** while memory keeps climbing toward the cap, detection silently halts, and nothing in the map evicts itself. A process restart clears the state and can lose the emit-once guards for in-flight windows, but it does not fix the underlying problem: without an external store, the working set is unbounded. The gateway never noticed, it took all 710,439 requests at zero failures, roughly 3,382 a second, while the thing downstream that decides who gets paged quietly stopped deciding.
+
+That is the on-theme failure for this series: not a loud death but a green dashboard over a dead detector. The fix is designed and not built: the window state belongs in an external store, Redis with a TTL that matches the window width, so a window evicts itself five minutes after it closes and the working set stays bounded no matter how many distinct bugs pass through. In memory, the map is fast and simple and has exactly one ceiling, and I would rather show you where it is than pretend it is not there.
+
+---
+
+## What is not done
+
+To keep the scope honest, as everywhere in this series:
+
+- **The window state is in process memory with no eviction.** A crash loses every in-flight window and its emit-once flags. Worse, because offsets are committed and delivery is at-least-once, a window that already paged before a restart can re-page after one, since the guard that prevented it did not survive. The real fix is an external windowed store (Redis, keyed the same way, TTL equal to the window) so the count and the guard both outlive the process and the footprint stays bounded.
+- **The tumbling boundary under-counts straddling bursts.** A burst of exactly the threshold split across two adjacent windows pages zero times, as measured above. A sliding window, or a short overlap between adjacent windows, would catch the case the hard boundary drops.
+- **It is single-node.** One clustering consumer, one partition's worth of state per key. The design is share-nothing and partition-keyed by `tenantId`, so it is meant to scale by adding consumers to the group, but I have not run it multi-node and will not draw a scaling claim I cannot reproduce.
+- **All numbers are single-laptop** (Docker Desktop, 512 MiB per service, single Redpanda node, ClickHouse 24.3, driven by k6). The 403ms detection, the 810 bytes per window, and the 434k-window cliff characterize this configuration and its bottleneck, not a production ceiling.
+
+---
+
+*Next: post 4, accept fast, never block. Everything in this post happens after the gateway has already said `202 Accepted`. That ordering, acknowledge first and count later, is the single most important decision in the pipeline, and the reason a frozen clustering consumer never once slowed the front door. Here is how the gateway gets out of the way in single-digit milliseconds.*
+
+---
+
+### Try log0
+
+log0 is the platform this series is built on, an open, multi-tenant incident pipeline you can run yourself or use hosted.
+
+- Platform: [log0.in](https://log0.in/)
+- Docs: [log0.in/docs](https://log0.in/docs)
+- Console: [console.log0.in](https://console.log0.in/)
+- charfield, the ASCII animation registry behind the log0 front ends: [charfield.log0.in](https://charfield.log0.in/)
+
+Written by [Ashmit JaiSarita Gupta](https://ashmitjsg.vercel.app/). Find me on [LinkedIn](https://www.linkedin.com/in/ashmitjsg/), [GitHub](https://github.com/ashmitjsg), and [X](https://twitter.com/ashmitjsg), and read the rest of the series on [Hashnode](https://engineeringwithashmit.hashnode.dev/series/log0).
