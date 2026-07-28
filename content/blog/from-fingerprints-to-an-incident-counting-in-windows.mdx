@@ -19,7 +19,10 @@ seoTitle: "From fingerprints to an incident: log0's windowed clustering"
 seoDescription: "log0 counts each fingerprint inside a 5-minute tumbling window and pages once at ten occurrences. The emit-once guard, p50 403ms detection, and two honest failure modes of an in-memory window store."
 canonical: self
 links:
+  hashnode: https://engineeringwithashmit.hashnode.dev/from-fingerprints-to-an-incident-counting-in-windows
   medium: https://ashmitjsg.medium.com/from-fingerprints-to-an-incident-log0s-windowed-clustering-ccc09c13ea36
+  linkedin: https://www.linkedin.com/pulse/from-fingerprints-incident-counting-windows-paging-once-log0-ncsic/
+  commune: https://usecommune.com/n/engineeringwithashmit/a/from-fingerprints-to-an-incident-counting-in-windows-paging
 ---
 
 > A fingerprint names a bug. It does not decide that the bug is worth waking someone for. That decision is the clustering service: it counts each fingerprint inside a five-minute tumbling window keyed on event time, and the first time a window crosses ten occurrences it emits exactly one `incident-events` message, then never emits for that window again. A same-clock probe puts the whole path, first log to incident row, at **p50 403ms**. The mechanism is a `ConcurrentHashMap` and a synchronized boolean. This post is the counter, the emit-once guard, and the two honest failure modes that fall out of doing it in memory with no eviction and a hard window boundary.
