@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a problem with the log0 website or documentation
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. For documentation fixes, a pull
+        request is often the fastest path - see CONTRIBUTING.md.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Page URL
+      description: The affected page on https://log0.in (or local route).
+    validations:
+      required: false
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: false
+  - type: input
+    id: environment
+    attributes:
+      label: Browser / OS
+    validations:
+      required: false

@@ -8,7 +8,7 @@ import {
 } from "@/components/docs/feedback/schema";
 
 export const repo = "log0-website";
-export const owner = "ashmitjsg";
+export const owner = "log0labs";
 export const DocsCategory = "Docs Feedback";
 
 let instance: Octokit | undefined;

@@ -291,7 +291,32 @@ The `.env` file is gitignored - your secret will never be committed.
 
 ## Step 3 - Start All Services
 
-Open **5 separate terminals** - one per service. All commands run from the project root (`log0-services/`).
+Open **7 separate terminals** - one per service.
+
+### Recommended: the `run` script
+
+Every service ships with a `run.sh` (Linux/macOS) and `run.ps1` (Windows PowerShell) helper. Each script **loads that service's `.env` automatically** (if present) and then starts the service with the Maven wrapper - so it replaces both the manual `.env` export **and** the `mvnw spring-boot:run` step. Run one command from the service's own directory:
+
+<Tabs items={["Linux/macOS", "Windows PowerShell"]}>
+  <Tab value="Linux/macOS">
+    ```bash
+    cd services/ingestion-gateway   # or any of the seven services
+    ./run.sh
+    ```
+  </Tab>
+<Tab value="Windows PowerShell">
+    ```powershell
+    cd services\ingestion-gateway   # or any of the seven services
+    .\run.ps1
+    ```
+  </Tab>
+</Tabs>
+
+Give each service its own terminal. The services that need credentials (notification, ai, auth) pick them up from their `.env` (Step 2) automatically - no `export` needed. If a service has no `.env`, the script just runs with your current environment.
+
+> If PowerShell blocks the script with an execution-policy error, run it for the current session with `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, then re-run `.\run.ps1`.
+
+The per-terminal commands below are the **manual equivalent** - use them if you prefer to invoke Maven directly or want to run a service from your IDE.
 
 ### Terminal 1 - Ingestion Gateway (port 8080)
 

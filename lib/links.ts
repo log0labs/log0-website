@@ -1,9 +1,10 @@
 export const links = {
   siteUrl: "https://log0.in",
-  github: "https://github.com/ashmitjsg/log0-services",
+  github: "https://github.com/log0labs",
   linkedin: "https://www.linkedin.com/company/log0/",
-  platformGithubRepo: "ashmitjsg/log0-services",
-  websiteGithubRepo: "ashmitjsg/log0-website",
+  platformGithubRepo: "log0labs/log0-services",
+  websiteGithubRepo: "log0labs/log0-website",
+  consoleGithubRepo: "log0labs/log0-console",
 
   docs: "/docs",
   blog: "/blog",
