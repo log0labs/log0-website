@@ -399,7 +399,7 @@ sequenceDiagram
     participant AIS as AI Summary Service (8085)
     participant Cache as Redis (future)
     participant CH as ClickHouse (future)
-    participant LLM as LLM Provider (Strategy)
+    participant LLM as LLM (LangChain)
     participant PG as PostgreSQL
 
     IS->>AIS: POST /api/v1/summaries (async - does not block notification)
@@ -408,15 +408,15 @@ sequenceDiagram
     AIS->>Cache: GET summary:incident:incidentId [future - Phase 9]
     Cache-->>AIS: MISS
 
-    AIS->>AIS: PromptBuilder.build(request) - structured prompt
-    Note over AIS: MVP uses topMessages from request<br/>Future (Phase 4.5): enrich with ClickHouse query below
+    AIS->>AIS: Build prompt from SummaryRequest (LCEL chain)
+    Note over AIS: Uses topMessages from request<br/>Structured output → legacy summary text for PATCH
 
-    AIS->>CH: Query top 10 messages by fingerprint and tenant [future - Phase 4.5]
+    AIS->>CH: Query top 10 messages by fingerprint and tenant [future]
     CH-->>AIS: top 10 most frequent messages with occurrence counts
 
-    AIS->>LLM: provider.generateSummary(prompt) temperature=0.2 maxTokens=300
-    Note over LLM: Active provider selected by ai.provider config<br/>Groq (default) · OpenAI · Gemini · Anthropic<br/>All implement LlmProvider interface (Strategy Pattern)
-    LLM-->>AIS: AI-generated summary text
+    AIS->>LLM: chat model (LLM_SUMMARY env, default Groq) temperature≈0.2
+    Note over LLM: LangChain init_chat_model · keys via GROQ_API_KEY etc.<br/>Optional LangSmith export at startup
+    LLM-->>AIS: structured summary → formatted text
 
     AIS->>Cache: SET summary:incident:incidentId TTL=1h [future - Phase 9]
     AIS->>IS: PATCH /api/v1/incidents/incidentId/ai-summary

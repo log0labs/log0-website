@@ -42,7 +42,7 @@ graph TD
         end
 
         subgraph AI["AI Layer"]
-            AIS[AI Summary Service\nPort 8085\nGroq · OpenAI · Gemini · Anthropic]
+            AIS[AI Summary Service\nPython · FastAPI :8085\nLangChain LLMs]
         end
 
         subgraph Storage["Storage Layer"]
@@ -241,7 +241,7 @@ graph TD
     PG[PostgreSQL]
     CH[ClickHouse]
     RD[Redis]
-    LLM["LLM Provider\n(Strategy Pattern)\nGroq · OpenAI · Gemini · Anthropic"]
+    LLM["LLM providers\nLangChain init_chat_model\nGroq default · others via env"]
     SLACK[Slack API]
     WA[WhatsApp API]
 
@@ -288,7 +288,7 @@ The two highest-latency operations are:
 | Clustering Service | 8082 | - (consumer only) | ✅ Implemented |
 | Incident Service | 8083 | HTTP + Kafka | ✅ Implemented · public via `api.log0.in` |
 | Notification Service | 8084 | HTTP + Kafka | ✅ Implemented |
-| AI Summary Service | 8085 | HTTP | ✅ Implemented |
+| AI Summary Service | 8085 | HTTP | ✅ Implemented (Python / FastAPI) |
 | Auth Service | 8086 | HTTP | ✅ Implemented · public via `auth.log0.in` |
 | Console (Next.js) | 3001 (dev) | HTTP | ✅ Live at `console.log0.in` (Vercel) |
 | Redpanda (internal/Docker) | 9092 | TCP | ✅ Running |

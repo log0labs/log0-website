@@ -26,13 +26,21 @@ The backend skeleton and the core event-driven pipeline.
 
 ---
 
+## Q3 2026 - ai-service (Python)
+
+| When | Milestone |
+|---|---|
+| Sep 2026 | **ai-service** rewritten in Python (FastAPI, LangChain): summary parity, Docker, LangSmith, E2E scripts |
+
+---
+
 ## Q1-Q2 2026 - Intelligence, Notifications & Docs
 
 The platform learns to summarize and speak, and the public site appears.
 
 | When | Milestone |
 |---|---|
-| Mar 2026 | `ai-service` - multi-provider LLM summaries (Groq default; OpenAI/Gemini/Anthropic via Strategy Pattern) |
+| Mar 2026 | `ai-service` (Java) - multi-provider LLM summaries; replaced by Python rewrite in Sep 2026 |
 | Mar 2026 | `notification-service` - Slack Block Kit alerts; WhatsApp wired |
 | Mar 2026 | `log0-website` - Next.js + Fumadocs docs site; architecture, flows, ADRs |
 | Mar-Apr 2026 | AsyncAPI Kafka contracts published as interactive HTML on the website |
@@ -74,7 +82,7 @@ The whole stack was deployed to a real domain in a single push - and a deliberat
 | Domain `log0.in` registered; DNS + free TLS on Cloudflare |
 | Three frontends live on Vercel: `log0.in`, `console.log0.in`, `charfield.log0.in` |
 | **Apache Kafka + Zookeeper → Redpanda v24.2.7** (Kafka-API compatible, single binary, no Zookeeper) |
-| Backend fully Dockerized - one `docker compose` for 7 services + Redpanda + PostgreSQL + ClickHouse |
+| Backend fully Dockerized - one `docker compose` for 7 services + Redpanda + PostgreSQL + ClickHouse (Java shared image; ai-service on Python image since Sep 2026) |
 | Backend exposed via a **Cloudflare named Tunnel** (`api` / `auth` / `ingest`.log0.in) - no public IP, no card |
 | Console wired to the backend through a same-origin Route Handler proxy; end-to-end verified live |
 

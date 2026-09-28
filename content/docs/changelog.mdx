@@ -9,12 +9,22 @@ Entries are newest-first and tagged by component: **[services]**, **[console]**,
 
 ---
 
+## 2026-09 - ai-service rewrite (Python)
+
+- **[services]** Replaced Java **ai-service** with **Python 3.13 / FastAPI**: same HTTP contract (`POST /api/v1/summaries` → `202`, `PATCH .../ai-summary`), port **8085**, camelCase JSON.
+- **[services]** Multi-provider LLMs via LangChain (`LLM_*` env vars); **Groq** default; optional **LangSmith** tracing (`configure_tracing` at startup).
+- **[services]** Dedicated **`services/ai-service/Dockerfile`** in Compose; Java services still use shared `docker/Dockerfile`.
+- **[services]** **incident-service** posts summary requests with **RestTemplate** (JSON body to ai-service).
+- **[services]** E2E helpers: `tools/e2e-ingest-to-summary.ps1` / `.sh`, existing `tools/seed-logs.js`.
+
+---
+
 ## 2026-06-27 - Live deployment
 
 - **[deploy]** Registered `log0.in`; moved DNS to Cloudflare with free TLS.
 - **[deploy]** Three frontends live on Vercel: `log0.in`, `console.log0.in`, `charfield.log0.in`.
 - **[services]** Migrated the event bus from **Apache Kafka + Zookeeper to Redpanda v24.2.7** (Kafka-API compatible, single binary, no Zookeeper). No application code changed - only `bootstrap-servers`.
-- **[services]** Full Docker stack: one generic multi-stage `Dockerfile` builds all 7 services; one `docker compose` brings up services + Redpanda + PostgreSQL + ClickHouse. Container hostnames injected via `SPRING_APPLICATION_JSON` so source `application.yml` stays untouched.
+- **[services]** Full Docker stack: shared Java `Dockerfile` for six services; one `docker compose` brings up services + Redpanda + PostgreSQL + ClickHouse. Container hostnames injected via `SPRING_APPLICATION_JSON` so source `application.yml` stays untouched. *(ai-service later moved to its own Python image.)*
 - **[services]** Fixed hard-coded `localhost:9092` brokers in `clustering-service` and `normalization-service` Kafka config classes - now read `spring.kafka.bootstrap-servers`, restoring env-driven config.
 - **[deploy]** Backend exposed through a **Cloudflare named Tunnel** (`api` / `auth` / `ingest`.log0.in → incident / auth / ingestion-gateway). No public IP, no port-forwarding, no Cloudflare card (CLI tunnel, not the Zero Trust dashboard).
 - **[console]** Replaced `next.config` rewrites with a same-origin **Route Handler** proxy (`app/api/v1/[...path]`). Fixes Vercel `500`s on authenticated (`200`/chunked) responses; preserves no-CORS, first-party cookies.
@@ -41,7 +51,7 @@ Entries are newest-first and tagged by component: **[services]**, **[console]**,
 
 ## 2026-03 - Pipeline complete & docs
 
-- **[services]** `ai-service` - multi-provider LLM incident summaries (Groq default; OpenAI/Gemini/Anthropic via Strategy Pattern).
+- **[services]** `ai-service` (Java) - multi-provider LLM incident summaries (Groq default). Superseded by Python service in Sep 2026.
 - **[services]** `notification-service` - Slack Block Kit alerts; WhatsApp wired.
 - **[services]** `incident-service` - incident state machine on PostgreSQL with AI-summary callback.
 - **[services]** `clustering-service` - tumbling 5-min windows, threshold-based incident creation.

@@ -11,7 +11,7 @@ log0 is a working end-to-end product: logs flow in, incidents come out, and the 
 |---|---|
 | Event pipeline (ingest → normalize → cluster → incident → notify) | ✅ Working end-to-end |
 | Multi-tenant model (tenants, users, JWT, API keys, RBAC) | ✅ Working |
-| AI incident summaries (Groq default, pluggable) | ✅ Working |
+| AI incident summaries (Python ai-service, pluggable LLMs) | ✅ Working |
 | Slack notifications | ✅ Working · interactive assign/ack flows partial |
 | Console (dashboard, incidents, logs, settings) | ✅ Live at `console.log0.in` |
 | Deployment (Docker + Cloudflare Tunnel + Vercel) | ✅ Live |
@@ -21,17 +21,23 @@ log0 is a working end-to-end product: logs flow in, incidents come out, and the 
 
 ## Backend Services
 
-All seven services run on **Java 25 / Spring Boot 4** and ship in the unified Docker stack.
+Six services run on **Java 25 / Spring Boot 4**; **ai-service** is **Python 3.13 (FastAPI)**. All ship in the same Docker Compose stack.
 
-| Service | Port | Status | Notes |
-|---|---|---|---|
-| ingestion-gateway | 8080 | ✅ | REST intake → `raw-logs`; DLQ fallback |
-| normalization-service | internal | ✅ | fingerprinting (SHA-256) + ClickHouse insert |
-| clustering-service | 8082 | ✅ | 5-min tumbling windows, threshold = 10 |
-| incident-service | 8083 | ✅ | state machine, PostgreSQL, AI callback |
-| ai-service | 8085 | ✅ | Groq · OpenAI · Gemini · Anthropic (Strategy Pattern) |
-| auth-service | 8086 | ✅ | JWT, tenants, API keys, RBAC |
-| notification-service | 8084 | ✅ | Slack Block Kit; WhatsApp wired, untested |
+| Service | Port | Status | Stack | Notes |
+|---|---|---|---|---|
+| ingestion-gateway | 8080 | ✅ | Java | REST intake → `raw-logs`; DLQ fallback |
+| normalization-service | internal | ✅ | Java | fingerprinting (SHA-256) + ClickHouse insert |
+| clustering-service | 8082 | ✅ | Java | 5-min tumbling windows, threshold = 10 |
+| incident-service | 8083 | ✅ | Java | state machine, PostgreSQL, AI callback |
+| ai-service | 8085 | ✅ | Python | Summary API parity; LangChain; LangSmith optional |
+| auth-service | 8086 | ✅ | Java | JWT, tenants, API keys, RBAC |
+| notification-service | 8084 | ✅ | Java | Slack Block Kit; WhatsApp wired, untested |
+
+### Planned ai-service work
+
+- On-demand **investigation** API (LangGraph), JWT auth, persistence in PostgreSQL `ai` schema
+- Console **Investigate with AI** UI and streaming progress
+- Tenant BYOK and richer evals (see architecture docs in `log0-services`)
 
 ### Planned backend work
 

@@ -94,7 +94,7 @@ The backend hostnames are pure configuration - `AUTH_API_URL`, `INCIDENTS_API_UR
 
 ## Backend in Docker
 
-The entire backend is **one `docker compose up`**: seven Spring Boot services plus their infrastructure, defined in `log0-services/docker/docker-compose.yml`.
+The entire backend is **one `docker compose up`**: seven application services (six Java, one Python) plus infrastructure, defined in `log0-services/docker/docker-compose.yml`.
 
 | Container | Image | Role |
 |---|---|---|
@@ -102,11 +102,12 @@ The entire backend is **one `docker compose up`**: seven Spring Boot services pl
 | `redpanda-init` | same | one-shot: creates the 5 topics |
 | `postgres` | `postgres:16` | incidents, users, tenants |
 | `clickhouse` | `clickhouse/clickhouse-server:24.3` | log events (analytical) |
-| 7× service | built from one generic `Dockerfile` | the application |
+| 6× Java service | `docker/Dockerfile` | Spring Boot apps |
+| ai-service | `services/ai-service/Dockerfile` | Python 3.13 + uv |
 
-### One Dockerfile for seven services
+### Java services: shared Dockerfile
 
-Every service is the same shape - a Maven + Java 25 Spring Boot app - so a single multi-stage `Dockerfile` builds all of them, selected per service by compose `build.context`:
+Six services are Maven + Java 25 Spring Boot apps. One multi-stage `docker/Dockerfile` builds each of them; compose sets `build.context` to the service directory:
 
 ```dockerfile
 FROM eclipse-temurin:25-jdk AS build
@@ -122,6 +123,10 @@ ENV JAVA_OPTS="-XX:MaxRAMPercentage=70.0 -XX:+UseSerialGC"
 ENTRYPOINT ["sh","-c","exec java $JAVA_OPTS -jar app.jar"]
 ```
 
+### ai-service: Python Dockerfile
+
+**ai-service** builds from `services/ai-service/Dockerfile` (Python 3.13, `uv sync`, uvicorn on port 8085). Compose mounts `services/ai-service/.env` and sets `INCIDENT_SERVICE_URL=http://incident-service:8083`. It does not use `SPRING_APPLICATION_JSON`.
+
 ### Config injected, source untouched
 
 Each service's `application.yml` keeps `localhost` defaults for bare-metal local dev. In Docker, the container hostnames are injected via `SPRING_APPLICATION_JSON` so the **source is never edited for the container environment**:
@@ -134,6 +139,14 @@ incident-service:
        "spring.kafka.bootstrap-servers":"redpanda:9092",
        "clickhouse.url":"jdbc:ch://clickhouse:8123/log0",
        "ai-service.base-url":"http://ai-service:8085"}
+
+ai-service:
+  build:
+    context: ../services/ai-service
+    dockerfile: Dockerfile
+  env_file: ../services/ai-service/.env
+  environment:
+    INCIDENT_SERVICE_URL: http://incident-service:8083
 ```
 
 Containers reach each other by service name (`postgres:5432`, `redpanda:9092`, `clickhouse:8123`, `<service>:<port>`) on the compose network. Swapping any dependency - say PostgreSQL for a managed Neon database - is one env line, not a code change.
@@ -249,4 +262,4 @@ If you later want a "real" public IP + reverse proxy instead of a tunnel, you re
 | Event bus | Redpanda (Kafka API) | One binary, no Zookeeper, ~1 GB less RAM on a single host |
 | Public exposure | Cloudflare named Tunnel | No public IP / port-forwarding, free TLS, no card needed |
 | DNS | Cloudflare (registrar: Hostinger) | Free, fast, required for the tunnel; Vercel records kept DNS-only |
-| Config strategy | Env vars + `SPRING_APPLICATION_JSON` + tunnel overlay | Source never edited per environment; hosts are swappable |
+| Config strategy | Java: env + `SPRING_APPLICATION_JSON`; ai-service: `.env` + compose env; tunnel overlay | Source never edited per environment; hosts are swappable |

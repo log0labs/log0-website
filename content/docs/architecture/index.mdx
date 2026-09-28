@@ -37,7 +37,7 @@ graph TD
     subgraph External["External Dependencies"]
         SLACK[Slack Workspace]
         WA[WhatsApp]
-        LLM[LLM Provider\nGroq · OpenAI · Gemini · Anthropic]
+        LLM[LLM providers\nPython ai-service · LangChain]
     end
 
     SVC1 -->|POST /api/v1/logs| log0
@@ -122,14 +122,14 @@ These are the design-time targets for a single-instance deployment.
 
 | Component | Technology | Role |
 |---|---|---|
-| Language | Java 25 | All backend services |
+| Language | Java 25 · Python 3.13 | Six Java services; ai-service is Python |
 | Framework | Spring Boot 4 (4.0.4-4.0.5) | Web, Kafka client, validation |
 | Event bus | Redpanda v24.2.7 (Kafka API) | Inter-service communication - single binary, no Zookeeper |
 | Log storage | ClickHouse 24.3 | High-volume analytical queries |
 | Incident storage | PostgreSQL 16 | ACID transactions, relational state |
 | Cache / state | Redis (planned) | Rate limiting, retention - not yet deployed; clustering windows are in-process today |
-| AI summaries | Groq (default) · OpenAI · Gemini · Anthropic | Incident summarization via Strategy Pattern |
+| AI summaries | Python FastAPI · LangChain | Groq default; per-purpose `LLM_*` env; LangSmith optional |
 | Notifications | Slack Block Kit + WhatsApp (untested) | Engineer alerts and actions |
-| Build | Maven + Docker (one generic Dockerfile) | Service builds and local infra |
+| Build | Maven + Docker (shared Java Dockerfile) · uv (ai-service) | Service builds and local infra |
 | Frontend | Next.js 16 console, live at `console.log0.in` | Incident management UI |
 | Deployment | Vercel · Cloudflare Tunnel · Docker | Frontends, edge, backend - see [Deployment](/docs/deployment) |

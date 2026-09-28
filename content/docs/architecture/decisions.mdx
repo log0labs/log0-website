@@ -312,7 +312,7 @@ All messages with the same key land on the same partition, and Kafka guarantees 
 
 ## ADR-008: Strategy Pattern for LLM Provider
 
-**Status:** Accepted
+**Status:** Accepted (Java implementation, March 2026). **Updated September 2026:** ai-service is Python; provider selection uses LangChain and `LLM_*` / API-key env vars. The goal-swap models without changing incident-service- is unchanged.
 
 ### Context
 
@@ -343,7 +343,7 @@ ai:
 | Alternative | Why Rejected |
 |---|---|
 | **Hardcode OpenAI** | Requires a paid API key. Breaks local dev for contributors without one. Any provider change requires code surgery across the service. |
-| **LangChain4j or Spring AI** | Adds a framework abstraction layer on top of another abstraction. For a single use case (one prompt, one response), the overhead is not justified. Direct HTTP calls give full visibility and control. |
+| **LangChain4j or Spring AI** | Rejected for the original Java service. The Python rewrite uses **LangChain** for summaries and planned LangGraph investigations. |
 | **Kafka event for summary request** | Adds a new topic and consumer just to trigger an LLM call. The AI Service is already a dedicated service - a synchronous REST call from Incident Service is simpler and sufficient. |
 
 ### Consequences
@@ -357,6 +357,17 @@ ai:
 - `GroqProvider` works with a free API key, unblocking local development
 - Each provider is independently unit-testable
 - Same pattern already used in the codebase: `OccurrenceStore` interface → `InMemoryOccurrenceStore` in the Clustering Service
+
+### Implementation update (September 2026)
+
+The Java ai-service was replaced by a **FastAPI** service under `services/ai-service/`:
+
+- **HTTP contract unchanged:** `POST /api/v1/summaries` (202, background work), callback `PATCH /api/v1/incidents/{id}/ai-summary` with `{ "aiSummary": "..." }`.
+- **Providers:** `app/llm/` resolves `LLM_SUMMARY`, `LLM_TRIAGE`, etc. (`provider:model`) via LangChain; platform keys in `.env` (`GROQ_API_KEY`, …).
+- **Observability:** `configure_tracing()` mirrors LangSmith settings from pydantic-settings into `os.environ`.
+- **Incident caller:** `AiSummarizer` in incident-service uses `RestTemplate` + JSON body.
+
+The Java `LlmProvider` / `ai.provider` YAML described above is historical reference for the first implementation.
 
 ---
 

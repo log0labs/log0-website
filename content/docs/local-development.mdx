@@ -9,8 +9,9 @@ Make sure these are installed before you begin:
 
 | Tool | Version | Notes |
 |---|---|---|
-| **Java** | 25+ | `java -version` to verify |
+| **Java** | 25+ | Six backend services; `java -version` to verify |
 | **Maven** | 3.9.12+ | Included via `mvnw` wrapper - no separate install needed |
+| **Python** | 3.13+ | **ai-service** only; install via [uv](https://docs.astral.sh/uv/) |
 | **Docker Desktop** | Latest | Must be running before Step 1 |
 | **Git** | Any | To clone the repo |
 | **Postman** _(optional)_ | Latest | For the Postman collection in `refs/postman/` |
@@ -30,7 +31,7 @@ docker compose up -d --build
 
 That's all you need to get the platform running - skip to [Step 4 - Health Checks](#step-4---health-checks). Set the service `.env` files (Step 2) first if you want Slack notifications or AI summaries.
 
-> The stack uses **Redpanda** (Kafka-API compatible, no Zookeeper) as the broker and builds every service from one generic `Dockerfile`. Container hostnames are injected via `SPRING_APPLICATION_JSON`, so the source `application.yml` files keep their `localhost` defaults untouched. See [Deployment](/docs/deployment) for the full picture.
+> The stack uses **Redpanda** (Kafka-API compatible, no Zookeeper) as the broker. **Six Java services** share one Maven `Dockerfile`; **ai-service** builds from its own Python `Dockerfile` in `services/ai-service`. Java containers get hostnames via `SPRING_APPLICATION_JSON`; ai-service uses `INCIDENT_SERVICE_URL` and its `.env` file. See [Deployment](/docs/deployment) for the full picture.
 
 **The manual path** below runs each service individually on bare metal - useful when you want to debug a single service in your IDE while the rest run in Docker.
 
@@ -178,18 +179,14 @@ The `.env` file is gitignored - your credentials will never be committed.
 
 ### AI Service credentials
 
-The **ai-service** uses [Groq](https://console.groq.com) by default - free tier, no credit card required. Get a key at [console.groq.com](https://console.groq.com), then:
+**ai-service** is a **Python (FastAPI)** app. It uses [LangChain](https://python.langchain.com/) chat models with per-purpose env vars (`LLM_SUMMARY`, `LLM_TRIAGE`, and so on) in `provider:model` form. Defaults use [Groq](https://console.groq.com) (free tier).
 
 <Tabs items={["Linux/macOS", "Windows PowerShell", "Windows CMD"]}>
   <Tab value="Linux/macOS">
     ```bash
     cd services/ai-service
     cp .env.example .env
-    nano .env   # or vim, code, etc.
-    ```
-    Fill in your Groq key:
-    ```
-    GROQ_API_KEY=gsk_your-actual-key-here
+    nano .env
     ```
   </Tab>
 <Tab value="Windows PowerShell">
@@ -198,10 +195,6 @@ The **ai-service** uses [Groq](https://console.groq.com) by default - free tier,
     Copy-Item .env.example .env
     notepad .env
     ```
-    Fill in your Groq key:
-    ```
-    GROQ_API_KEY=gsk_your-actual-key-here
-    ```
   </Tab>
 <Tab value="Windows CMD">
     ```cmd
@@ -209,14 +202,27 @@ The **ai-service** uses [Groq](https://console.groq.com) by default - free tier,
     copy .env.example .env
     notepad .env
     ```
-    Fill in your Groq key:
-    ```
-    GROQ_API_KEY=gsk_your-actual-key-here
-    ```
   </Tab>
 </Tabs>
 
-The other three keys (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`) are optional - only needed if you switch `ai.provider` in `services/ai-service/src/main/resources/application.yml`.
+Minimum for local summaries (matches `.env.example` defaults):
+
+```
+GROQ_API_KEY=gsk_your-actual-key-here
+INCIDENT_SERVICE_URL=http://localhost:8083
+```
+
+Set API keys for any provider you reference in `LLM_*` (for example `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `HF_TOKEN`). In Docker, compose sets `INCIDENT_SERVICE_URL=http://incident-service:8083`.
+
+**LangSmith (optional):** uncomment in `.env` when you want traces:
+
+```
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=lsv2_...
+LANGCHAIN_PROJECT=log0-ai-service
+```
+
+The service copies these into `os.environ` at startup so the LangSmith SDK can export runs.
 
 ### Auth Service credentials
 
@@ -295,24 +301,24 @@ Open **7 separate terminals** - one per service.
 
 ### Recommended: the `run` script
 
-Every service ships with a `run.sh` (Linux/macOS) and `run.ps1` (Windows PowerShell) helper. Each script **loads that service's `.env` automatically** (if present) and then starts the service with the Maven wrapper - so it replaces both the manual `.env` export **and** the `mvnw spring-boot:run` step. Run one command from the service's own directory:
+Each **Java** service ships with a `run.sh` / `run.ps1` helper that loads `.env` (if present) and runs `mvnw spring-boot:run`. **ai-service** does not use Maven; start it with `uv` (see Terminal 6).
 
 <Tabs items={["Linux/macOS", "Windows PowerShell"]}>
   <Tab value="Linux/macOS">
     ```bash
-    cd services/ingestion-gateway   # or any of the seven services
+    cd services/ingestion-gateway   # any Java service
     ./run.sh
     ```
   </Tab>
 <Tab value="Windows PowerShell">
     ```powershell
-    cd services\ingestion-gateway   # or any of the seven services
+    cd services\ingestion-gateway   # any Java service
     .\run.ps1
     ```
   </Tab>
 </Tabs>
 
-Give each service its own terminal. The services that need credentials (notification, ai, auth) pick them up from their `.env` (Step 2) automatically - no `export` needed. If a service has no `.env`, the script just runs with your current environment.
+Give each service its own terminal. Services that need credentials (notification, ai, auth) read from their `.env` (Step 2).
 
 > If PowerShell blocks the script with an execution-policy error, run it for the current session with `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, then re-run `.\run.ps1`.
 
@@ -440,31 +446,33 @@ This service needs Slack env vars loaded before it starts.
 
 ### Terminal 6 - AI Service (port 8085)
 
-This service needs the Groq API key loaded before it starts.
+Python service. From `services/ai-service` (with `.env` from Step 2):
 
 <Tabs items={["Linux/macOS", "Windows PowerShell", "Windows CMD"]}>
   <Tab value="Linux/macOS">
     ```bash
     cd services/ai-service
-    export $(cat .env | grep -v '^#' | xargs)
-    ./mvnw spring-boot:run
+    uv sync
+    uv run uvicorn app.main:app --host 0.0.0.0 --port 8085
     ```
   </Tab>
 <Tab value="Windows PowerShell">
     ```powershell
     cd services\ai-service
-    Get-Content .env | Where-Object { $_ -notmatch '^#' -and $_ -match '=' } | ForEach-Object { $k,$v = $_ -split '=',2; Set-Item "env:$k" $v }
-    .\mvnw.cmd spring-boot:run
+    uv sync
+    uv run uvicorn app.main:app --host 0.0.0.0 --port 8085
     ```
   </Tab>
 <Tab value="Windows CMD">
     ```cmd
     cd services\ai-service
-    for /f "tokens=1,2 delims==" %i in (.env) do @if not "%i:~0,1%"=="#" set "%i=%j"
-    mvnw.cmd spring-boot:run
+    uv sync
+    uv run uvicorn app.main:app --host 0.0.0.0 --port 8085
     ```
   </Tab>
 </Tabs>
+
+Run commands from `services/ai-service` so Python resolves the `app` package.
 
 ### Terminal 7 - Auth Service (port 8086)
 
@@ -507,7 +515,7 @@ Once all services have printed `Started ... in ... seconds`, verify they are all
     curl http://localhost:8082/actuator/health
     curl http://localhost:8083/actuator/health
     curl http://localhost:8084/actuator/health
-    curl http://localhost:8085/actuator/health
+    curl http://localhost:8085/health
     curl http://localhost:8086/actuator/health
     ```
   </Tab>
@@ -517,7 +525,7 @@ Once all services have printed `Started ... in ... seconds`, verify they are all
     Invoke-RestMethod http://localhost:8082/actuator/health
     Invoke-RestMethod http://localhost:8083/actuator/health
     Invoke-RestMethod http://localhost:8084/actuator/health
-    Invoke-RestMethod http://localhost:8085/actuator/health
+    Invoke-RestMethod http://localhost:8085/health
     Invoke-RestMethod http://localhost:8086/actuator/health
     ```
   </Tab>
@@ -527,25 +535,25 @@ Once all services have printed `Started ... in ... seconds`, verify they are all
     curl http://localhost:8082/actuator/health
     curl http://localhost:8083/actuator/health
     curl http://localhost:8084/actuator/health
-    curl http://localhost:8085/actuator/health
+    curl http://localhost:8085/health
     curl http://localhost:8086/actuator/health
     ```
   </Tab>
 </Tabs>
 
-Every endpoint should return `{"status":"UP"}`.
+Java services return `{"status":"UP"}` from `/actuator/health`. **ai-service** returns `{"status":"UP","service_name":"ai-service"}` from `/health` (also exposes `/actuator/health` for parity).
 
 > **Note:** normalization-service runs on port 8081 but its actuator is not configured by default. If `http://localhost:8081/actuator/health` returns a connection error, the service is still healthy as long as it's consuming from `raw-logs` (visible in the terminal logs).
 
-| Service | Port | Role |
-|---|---|---|
-| ingestion-gateway | 8080 | Receives logs from clients |
-| normalization-service | 8081 | Parses, fingerprints, and stores logs to ClickHouse |
-| clustering-service | 8082 | Counts occurrences, triggers incidents |
-| incident-service | 8083 | Stores incidents, exposes REST API (incl. log query) |
-| notification-service | 8084 | Sends Slack alerts |
-| ai-service | 8085 | Generates AI summaries via LLM |
-| auth-service | 8086 | Tenant registration, JWT auth, API key management |
+| Service | Port | Stack | Role |
+|---|---|---|---|
+| ingestion-gateway | 8080 | Java | Receives logs from clients |
+| normalization-service | 8081 | Java | Parses, fingerprints, and stores logs to ClickHouse |
+| clustering-service | 8082 | Java | Counts occurrences, triggers incidents |
+| incident-service | 8083 | Java | Stores incidents, exposes REST API (incl. log query) |
+| notification-service | 8084 | Java | Sends Slack alerts |
+| ai-service | 8085 | Python | LLM incident summaries (FastAPI) |
+| auth-service | 8086 | Java | Tenant registration, JWT auth, API key management |
 
 **Infrastructure:**
 
@@ -568,7 +576,7 @@ Send a single test log to confirm the ingestion gateway accepts it. A `202 Accep
       -H "Content-Type: application/json" \
       -H "X-SERVICE-NAME: payment-service" \
       -H "X-ENVIRONMENT: production" \
-      -H "X-API-KEY: test-key-123" \
+      -H "X-API-KEY: log0_your-raw-key-from-console" \
       -d '{
         "timestamp": "2026-03-28T10:30:00Z",
         "level": "ERROR",
@@ -592,7 +600,7 @@ Send a single test log to confirm the ingestion gateway accepts it. A `202 Accep
       -Headers @{
           "X-SERVICE-NAME" = "payment-service"
           "X-ENVIRONMENT"  = "production"
-          "X-API-KEY"      = "test-key-123"
+          "X-API-KEY"      = "log0_your-raw-key-from-console"
       } `
       -Body $body
     ```
@@ -603,15 +611,26 @@ Send a single test log to confirm the ingestion gateway accepts it. A `202 Accep
       -H "Content-Type: application/json" ^
       -H "X-SERVICE-NAME: payment-service" ^
       -H "X-ENVIRONMENT: production" ^
-      -H "X-API-KEY: test-key-123" ^
+      -H "X-API-KEY: log0_your-raw-key-from-console" ^
       -d "{\"timestamp\":\"2026-03-28T10:30:00Z\",\"level\":\"ERROR\",\"message\":\"Database connection timeout after 30s\",\"trace\":\"java.sql.SQLException: Connection timeout\"}"
     ```
   </Tab>
 </Tabs>
 
-**Trigger an incident:** Send the same request **10+ times**. The clustering-service counts occurrences per fingerprint and publishes to `incident-events` once the threshold is reached. Use Postman Collection Runner with Iterations = 12 for convenience.
+Use a **real API key** from the console (Settings → API keys). The gateway validates the key with auth-service and derives the tenant; placeholder values return `401`.
 
-**Verify AI summary:** After triggering an incident, connect to PostgreSQL and check that `ai_summary` was populated:
+**Trigger an incident:** Send the same request **10+ times** with the **same** message and trace. Clustering uses a threshold of **10** occurrences within a **5-minute** window. Postman Collection Runner with 12 iterations works.
+
+**End-to-end script:** From `log0-services/tools`:
+
+```powershell
+$env:API_KEY = "log0_...."
+.\e2e-ingest-to-summary.ps1
+```
+
+This checks `.env` files, health endpoints, ingests 12 logs, waits for an incident, and waits for `ai_summary`. Git Bash: `export API_KEY=...` then `./e2e-ingest-to-summary.sh`. For bulk demo data, see `tools/seed-logs.js`.
+
+**Verify AI summary:** After a new incident, check PostgreSQL or the console incident drawer:
 
 ```sql
 SELECT incident_id, service_name, status, ai_summary
@@ -633,7 +652,7 @@ You can also test ai-service independently without going through the full pipeli
       -H "Content-Type: application/json" \
       -d '{
         "incidentId": "00000000-0000-0000-0000-000000000001",
-        "tenantId": "test-tenant",
+        "tenantId": "00000000-0000-0000-0000-000000000001",
         "serviceName": "payment-service",
         "environment": "production",
         "severity": "HIGH",
@@ -649,17 +668,17 @@ You can also test ai-service independently without going through the full pipeli
   </Tab>
 <Tab value="Windows PowerShell">
     ```powershell
-    Invoke-RestMethod -Uri "http://localhost:8085/api/v1/summaries" -Method POST -ContentType "application/json" -Body '{"incidentId":"00000000-0000-0000-0000-000000000001","tenantId":"test-tenant","serviceName":"payment-service","environment":"production","severity":"HIGH","occurrenceCount":42,"firstSeenAt":"2024-01-01T10:00:00Z","lastSeenAt":"2024-01-01T11:00:00Z","topMessages":["Connection refused: db-host:5432","Timeout waiting for connection from pool"]}'
+    Invoke-RestMethod -Uri "http://localhost:8085/api/v1/summaries" -Method POST -ContentType "application/json" -Body '{"incidentId":"00000000-0000-0000-0000-000000000001","tenantId":"00000000-0000-0000-0000-000000000001","serviceName":"payment-service","environment":"production","severity":"HIGH","occurrenceCount":42,"firstSeenAt":"2024-01-01T10:00:00Z","lastSeenAt":"2024-01-01T11:00:00Z","topMessages":["Connection refused: db-host:5432","Timeout waiting for connection from pool"]}'
     ```
   </Tab>
 <Tab value="Windows CMD">
     ```cmd
-    curl -X POST http://localhost:8085/api/v1/summaries -H "Content-Type: application/json" -d "{\"incidentId\":\"00000000-0000-0000-0000-000000000001\",\"tenantId\":\"test-tenant\",\"serviceName\":\"payment-service\",\"environment\":\"production\",\"severity\":\"HIGH\",\"occurrenceCount\":42,\"firstSeenAt\":\"2024-01-01T10:00:00Z\",\"lastSeenAt\":\"2024-01-01T11:00:00Z\",\"topMessages\":[\"Connection refused: db-host:5432\",\"Timeout waiting for connection from pool\"]}"
+    curl -X POST http://localhost:8085/api/v1/summaries -H "Content-Type: application/json" -d "{\"incidentId\":\"00000000-0000-0000-0000-000000000001\",\"tenantId\":\"6b1cd754-a35c-491a-9ee8-0e98dfd7b5a8\",\"serviceName\":\"payment-service\",\"environment\":\"production\",\"severity\":\"HIGH\",\"occurrenceCount\":42,\"firstSeenAt\":\"2024-01-01T10:00:00Z\",\"lastSeenAt\":\"2024-01-01T11:00:00Z\",\"topMessages\":[\"Connection refused: db-host:5432\",\"Timeout waiting for connection from pool\"]}"
     ```
   </Tab>
 </Tabs>
 
-Expected response: `202 Accepted`. Check the ai-service logs - you should see the Groq API call succeed, then a callback attempt to incident-service (which will fail with a connection error if incident-service is not running - that's expected and handled gracefully).
+Expected response: `202 Accepted`. The summary runs in a background task: logs should show an LLM call, then `PATCH .../ai-summary` to incident-service. Use a real `incidentId` from Postgres if you want the PATCH to succeed.
 
 ---
 
@@ -882,7 +901,7 @@ POST /api/v1/logs (8080)
               → incident-events (Kafka)  ← fires at 10 occurrences
                 → incident-service (8083) → PostgreSQL (incident table)
                     ├── → POST /api/v1/summaries (8085, async)
-                    │       → ai-service → Groq LLM
+                    │       → ai-service (Python) → LLM (Groq default)
                     │           → PATCH /api/v1/incidents/{id}/ai-summary (8083)
                     │               → incident.ai_summary saved to PostgreSQL
                     └── → notification-events (Kafka)
