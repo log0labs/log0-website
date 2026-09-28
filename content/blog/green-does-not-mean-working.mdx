@@ -1,6 +1,6 @@
 ---
-title: "Green does not mean working: what a health check confirms"
-description: "A liveness probe and a real request take different paths through a service, and the gap between them hides a whole class of bug. The first real POST to log0's gateway hung while every health check stayed green."
+title: "When /actuator/health stays UP while log ingestion blocks on Kafka"
+description: "log0's first real POST to the ingestion gateway hung for about 60 seconds while every liveness check returned 200. The failure was a Kafka producer blocking on max.block.ms against an unreachable broker address."
 slug: green-does-not-mean-working
 date: "2026-07-03"
 order: 1
@@ -15,8 +15,8 @@ keywords:
   - observability
 coverDark: /blog/covers/cover-01-dark.png
 coverLight: /blog/covers/cover-01-light.png
-seoTitle: "Green does not mean working: what a health check actually confirms"
-seoDescription: "A green /actuator/health returned 200 while the first real POST hung for 60 seconds. The cause: a Kafka producer blocking on max.block.ms against an address that pointed nowhere."
+seoTitle: "Liveness vs Kafka on the request path in log0"
+seoDescription: "/actuator/health was 200 while POST /api/v1/logs blocked: producer max.block.ms and a misconfigured broker host."
 canonical: self
 links:
   hashnode: https://engineeringwithashmit.hashnode.dev/green-does-not-mean-working

@@ -1,6 +1,6 @@
 ---
-title: "Accept fast, never block: the one decision that keeps ingestion alive"
-description: "A logging endpoint has one job it can never fail at: being available to accept logs. log0's ingestion gateway returns 202 Accepted the instant the event is handed to a Kafka producer future-before the broker acks-and never waits for clustering, a database write, or Slack."
+title: "Returning HTTP 202 after Kafka enqueue in the log ingestion gateway"
+description: "log0's ingestion gateway responds with 202 Accepted once the log event is submitted to the Kafka producer, without waiting for broker acknowledgement, clustering, Postgres, or notification—measured with k6 from 50 to 800 virtual users."
 slug: accept-fast-never-block-ingestion-gateway
 date: "2026-08-01"
 order: 4
@@ -15,8 +15,8 @@ keywords:
   - stream processing
 coverDark: /blog/covers/cover-04-dark.png
 coverLight: /blog/covers/cover-04-light.png
-seoTitle: "Accept fast, never block: log0's ingestion gateway decision"
-seoDescription: "log0's gateway returns 202 when queued to Kafka, never waiting on clustering, Postgres, or Slack. RawLogProducer callback, DLQ, k6 sweep 50-800 VUs."
+seoTitle: "202 Accepted on enqueue: log0 ingestion gateway"
+seoDescription: "Accept boundary at the gateway: 202 when queued to Kafka, producer callbacks, DLQ on failure, k6 latency 50–800 VUs."
 canonical: self
 links:
   hashnode: https://engineeringwithashmit.hashnode.dev/log0-accept-fast-never-block-ingestion-gateway
@@ -141,7 +141,7 @@ For a logging pipeline, that is obviously the right trade. Nobody emitting a log
 
 ---
 
-*Next: post 5, where it broke. Accept-fast moves the work downstream; this is what happened when one of those downstream consumers wrote to the database the naive way, one row at a time, and the producer-consumer mismatch you could watch build up and then drain.*
+*Next: [post 5, where it broke](/blog/clickhouse-single-row-insert-wall). Accept-fast moves the work downstream; this is what happened when one of those downstream consumers wrote to the database the naive way, one row at a time, and the producer-consumer mismatch you could watch build up and then drain.*
 
 ---
 

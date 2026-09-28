@@ -1,0 +1,169 @@
+---
+title: "Modeling incident lifecycle with an enforced state machine"
+description: "Incidents in log0 move through NEW, ASSIGNED, ACKNOWLEDGED, and RESOLVED under server-side rules, with immutable history rows and idempotent upserts for at-least-once Kafka delivery."
+slug: incident-state-machine-not-status-column
+date: "2026-09-12"
+order: 10
+keywords:
+  - incident management
+  - state machine
+  - postgres
+  - kafka
+  - observability
+  - system design
+coverDark: /blog/covers/cover-10-dark.png
+coverLight: /blog/covers/cover-10-light.png
+seoTitle: "Incident state machine design in log0"
+seoDescription: "Enforced lifecycle transitions, state history, and upsert idempotency for incidents created from incident-events."
+canonical: self
+links: {}
+---
+
+> A `status` field is the most dangerous column in the schema, because any `UPDATE` can set it to anything. One careless query moves an [incident](https://console.log0.in/) from `NEW` straight to `RESOLVED` and nobody ever acknowledged it. So log0 does not let an incident's status be assigned; it lets it be transitioned. `NEW -> ASSIGNED -> ACKNOWLEDGED -> RESOLVED`, enforced by an allow-list in code, every move appended to an immutable history, and every illegal jump throwing before a single row is written. The one transition the machine drives itself, the system opening a `NEW` incident, lands **403ms after the tenth matching log** (p50, n=60). The rest are human-paced, and equally guarded.
+
+This is post 10 in a series on building [log0](/blog/building-log0-a-multi-tenant-incident-platform-on-kafka). [Post 9](/blog/dead-letter-queue-zero-data-loss) quarantined the poison and let a clean record become a log event. But a log event is not an incident, and ten of them are not ten incidents. This post is about what happens after detection: how a fingerprint becomes one open incident, how that incident moves through its lifecycle without skipping a step, and why the transitions live in code as a state machine instead of a nullable column that any write can scribble on.
+
+---
+
+## A status column is a liability
+
+The default way to track lifecycle is a string column and a set of `UPDATE` statements:
+
+```sql
+UPDATE incident SET status = 'RESOLVED' WHERE incident_id = ?;
+```
+
+This works right up until it does not. Nothing in that statement knows what the previous status was, so nothing stops it from resolving an incident that was never acknowledged, re-opening one that was closed last week, or assigning one that is already resolved. The database will happily write any string into that column, including a typo. The lifecycle exists only in convention and in the discipline of whoever writes the next query. That is not a state machine; it is a free-text field with optimistic naming.
+
+The fix is to make the column unwritable directly and route every change through a single function that knows the rules. The status still lives in a column, but the column is an output, not an input. The input is a transition request, and a transition request can be refused.
+
+---
+
+## Transitions, not assignments
+
+log0's rules are a small allow-list, and it is the entire state machine:
+
+```java
+private static final Map<String, Set<String>> ALLOWED_TRANSITIONS = Map.of(
+    "NEW",          Set.of("ASSIGNED"),
+    "ASSIGNED",     Set.of("ACKNOWLEDGED", "ASSIGNED"),  // self-loop = handover
+    "ACKNOWLEDGED", Set.of("RESOLVED"),
+    "RESOLVED",     Set.of()                              // terminal
+);
+
+public void transition(String currentStatus, String targetStatus) {
+    Set<String> allowed = ALLOWED_TRANSITIONS.getOrDefault(currentStatus, Set.of());
+    if (!allowed.contains(targetStatus)) {
+        throw new IllegalStateException("Invalid transition: " + currentStatus + " -> " + targetStatus);
+    }
+}
+```
+
+That map is the whole law. `NEW` can only become `ASSIGNED`. `ASSIGNED` can be acknowledged or re-assigned to a new owner (the self-loop, for handovers). `ACKNOWLEDGED` can only resolve. `RESOLVED` has an empty set of allowed targets, which is how this design spells "terminal": there is no string that gets you out of it. Anything not in the map throws `IllegalStateException` before any state changes.
+
+The important part is where this check sits. Every mutating method in the service calls `transition(...)` first, then writes, and the whole thing is one transaction:
+
+```java
+@Transactional
+public void resolveIncident(UUID incidentId, UUID tenantId, UUID userId) {
+    Incident incident = getIncident(incidentId, tenantId);   // tenant-scoped fetch
+    stateMachine.transition(incident.getStatus(), "RESOLVED"); // throws if illegal, before any write
+    String previousStatus = incident.getStatus();
+    incident.setStatus("RESOLVED");
+    incident.setResolvedAt(Instant.now());
+    incidentRepository.save(incident);
+    recordHistory(incidentId, previousStatus, "RESOLVED", userId);
+    notificationPublisher.publish(buildNotificationEvent(incident, "INCIDENT_RESOLVED", null));
+}
+```
+
+Because the guard runs before the `save`, an illegal transition has no side effects at all. The transaction never reaches the write. A `NEW` incident that someone tries to resolve directly throws, rolls back, and stays exactly `NEW`. The status column cannot hold a value the machine did not allow it to reach.
+
+![The incident lifecycle as a server-enforced state machine. A start marker leads into NEW, which carries the real createdAt column. NEW transitions on assign to ASSIGNED, which has a self-loop labelled reassign for handovers and whose time lives in state_history. ASSIGNED transitions on acknowledge to ACKNOWLEDGED, also timed in state_history. ACKNOWLEDGED transitions on resolve to RESOLVED, which carries the real resolvedAt column and is terminal, leading to an end marker. A caption notes that illegal jumps are rejected server-side: NEW to RESOLVED, re-opening a RESOLVED incident, or any skip, all throw IllegalStateException; and that only NEW and RESOLVED stamp incident columns while every transition appends an immutable incident_state_history row of from, to, by, and at. A lower band explains why every write is an upsert, not an insert: because incident-service consumes incident-events at-least-once, a duplicate redelivered event lands on the existing incident row keyed by tenant and fingerprint, refreshes the occurrence count from ClickHouse with no increment and no new row, so a replay is absorbed rather than forked. At-least-once plus idempotent equals effectively-once](/blog/charts/diag-incident-state.svg)
+
+---
+
+## The history is the audit, not extra columns
+
+Here is a detail I got wrong in an earlier draft of my own mental model, and correcting it is the point of this section. The incident row does not have an `assignedAt` and an `acknowledgedAt` column. It has exactly two lifecycle timestamps: `createdAt`, stamped by JPA's `@PrePersist` when the `NEW` row is born, and `resolvedAt`, stamped when it resolves. The assignment and acknowledgement times are not columns at all.
+
+They live in a separate, append-only table. Every single transition writes one immutable row:
+
+```java
+private void recordHistory(UUID incidentId, String fromStatus, String toStatus, UUID changedByUserId) {
+    IncidentStateHistory history = new IncidentStateHistory();
+    history.setIncidentId(incidentId);
+    history.setFromStatus(fromStatus);   // null only for the initial NEW
+    history.setToStatus(toStatus);
+    history.setChangedByUserId(changedByUserId); // null for system-driven transitions
+    stateHistoryRepository.save(history);
+}
+```
+
+This is the difference between a status column and a state machine made concrete. The column says where the incident is now. The history tells you how it got there: every `from -> to`, who did it, and when, in order, forever. The acknowledge-to-resolve duration, the time an incident sat unassigned, the audit of who closed what, none of those are columns to be overwritten; they are derived by reading the history. A column can be scribbled over and lose its past. An append-only log cannot, because nothing ever updates it; it only grows.
+
+One honest asymmetry falls out of this: `recordHistory` is called by hand in each transition method, right after the `save`. The history is correct because every transition method remembers to append to it, not because the database forces them to. That is the same class of "discipline, not enforcement" gap I flagged for tenant scoping in post 8, and it is on the list at the end.
+
+---
+
+## Why detection is an upsert, not an insert
+
+The state machine governs the human-driven part of the lifecycle. The entry into it, the creation of the `NEW` incident, is driven by Kafka, and that changes the constraints. Recall from [Post 9](/blog/dead-letter-queue-zero-data-loss) that consumers here are at-least-once: a record can be redelivered on a rebalance or a retry. If incident creation were a plain `INSERT`, a redelivered `incident-events` message would fork a second incident for the same error, and a flapping consumer would shard one outage across a dozen duplicate rows.
+
+So creation is an idempotent upsert keyed on `(tenant, fingerprint)` over active incidents:
+
+```java
+Optional<Incident> existing = incidentRepository.findByTenantIdAndFingerprintAndStatusNot(
+        tenantId, event.getFingerprint(), "RESOLVED");
+
+if (existing.isPresent()) {
+    Incident incident = existing.get();
+    incident.setOccurrenceCount(Math.max(liveCount, incident.getOccurrenceCount())); // liveCount from ClickHouse
+    incident.setLastSeenAt(event.getLastSeenAt());
+    incident.setTopMessages(event.getTopMessages());
+    incidentRepository.save(incident);
+} else {
+    // ... create in status NEW, recordHistory(null, "NEW", null), notify INCIDENT_CREATED
+}
+```
+
+Two decisions here are doing the idempotency work. First, the occurrence count is not incremented; it is read from ClickHouse, which is the source of truth for how many times the error truly happened. A redelivered event therefore cannot inflate the count, because the event's own number is never added to anything. Second, the lookup excludes `RESOLVED`, so a fresh occurrence of an error you already closed opens a brand-new incident instead of zombie-reviving the old one, which is exactly why `RESOLVED` is terminal in the state machine. A duplicate event lands on the existing row and merges; a genuinely new occurrence after resolution starts a new lifecycle. At-least-once delivery plus an idempotent upsert gives effectively-once semantics without distributed transactions.
+
+---
+
+## How fast the first transition lands
+
+The human transitions are paced by humans, so they have no meaningful latency to measure. The system transition, ingest to `NEW`, does, and it is the one number this post can put a distribution behind.
+
+![A histogram of end-to-end latency from log ingest to incident creation. A same-clock probe sends ten identical-fingerprint logs to hit the clustering threshold and polls Postgres for the resulting incident, repeated for n equals 60 samples. The distribution is tight and centred: mean 405ms, min 366ms, max 477ms, p50 marked at 403ms and p99 marked at 477ms. Almost all samples fall between 380 and 440ms, with a single outlier near 477ms](/blog/charts/post06-e2e-latency.svg)
+
+This is a same-clock probe: one machine sends ten logs that share a fingerprint, which is the clustering threshold, and polls Postgres until the incident appears, timing the whole path through ingestion, normalization, ClickHouse, clustering, and the idempotent upsert that creates the `NEW` row. Over 60 runs the median is **403ms**, the spread is narrow (**min 366, max 477**), and the **p99 is 477ms**. That is the cost of the entire detection pipeline collapsing into the first state transition. Everything after `NEW` waits on a person, not on the system, which is the correct division of labour: the machine should be fast at noticing, and deliberate about who is allowed to change what next.
+
+---
+
+## What is not done
+
+- **`updateAiSummary` looks the incident up without a tenant scope.** This is the same gap named in post 8, seen from the other side: the AI-summary write does `findById(incidentId)` rather than a tenant-scoped fetch. It does not go through the state machine (it writes a content column, not a status), so it is not a transition-safety problem, but it is an unscoped write and it should thread `tenant_id` like every other method here.
+- **History is appended by convention, not enforced.** Each transition method calls `recordHistory` itself. A future method that updates `status` and forgets to append would leave the column and the history out of sync, and nothing in the database would object. A trigger, or routing all status writes through one method that always records, would make the audit structural instead of disciplined.
+- **The state names are strings, not a typed enum.** `ALLOWED_TRANSITIONS` is a `Map<String, Set<String>>`. A typo like `"RESOVLED"` in calling code compiles fine and fails only at runtime as an invalid transition. A proper enum would move that error to compile time and is the obvious hardening.
+- **There is no re-open and no acknowledged-to-assigned path.** `RESOLVED` is terminal by design, so a recurring error opens a new incident rather than re-opening the old one. That keeps each incident's history clean but means a flapping error produces a string of separate incidents. There is also no transition back from `ACKNOWLEDGED` to `ASSIGNED`, so an incident cannot be re-assigned once acknowledged. Both are deliberate today and both are real workflow limitations.
+- **Only the system transition is benchmarked, and on one node.** The 403ms p50 is a single-laptop, same-clock figure (Docker Desktop, 512 MB per service, one Redpanda node, ClickHouse 24.3, n=60). It characterizes detection latency on this setup, not the human-paced transitions, which have no SLA here at all.
+
+The reason a state machine is worth this much ceremony for four states is that the ceremony is the feature. The value is not that the incident has a status; it is that the incident can only have reached its status by a path the system allowed and recorded. That property is impossible to get from a column that any `UPDATE` can set, and it is the whole reason the lifecycle lives in code.
+
+---
+
+*Next: [post 11, the AI summary as an asynchronous callback.](/blog/ai-summary-async-callback-not-result). Creating a `NEW` incident fires a request for an LLM-written summary, but the model is slow and the incident must exist immediately, so the summary cannot block creation. The next post follows that request out to the AI service and back through a callback that writes the summary onto an incident that has been live for seconds already, and why a `202` here is, once again, a promise rather than a result.*
+
+---
+
+### Try log0
+
+log0 is the platform this series is built on, an open, multi-tenant incident pipeline you can run yourself or use hosted.
+
+- Platform: [log0.in](https://log0.in/)
+- Docs: [log0.in/docs](https://log0.in/docs)
+- Console: [console.log0.in](https://console.log0.in/)
+- charfield, the ASCII animation registry behind the log0 front ends: [charfield.log0.in](https://charfield.log0.in/)
+
+Written by [Ashmit JaiSarita Gupta](https://ashmitjsg.vercel.app/). Find me on [LinkedIn](https://www.linkedin.com/in/ashmitjsg/), [GitHub](https://github.com/ashmitjsg), and [X](https://twitter.com/ashmitjsg), and read the rest of the series on [Hashnode](https://engineeringwithashmit.hashnode.dev/series/log0).

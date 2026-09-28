@@ -1,0 +1,170 @@
+---
+title: "Designing tenant isolation across Kafka, ClickHouse, and Postgres"
+description: "log0 derives tenant identity from validated API keys, keys Kafka records by tenantId, and scopes analytical and relational queries. The post also covers gaps in per-tenant fairness on a shared topic."
+slug: multi-tenancy-is-a-boundary
+date: "2026-08-29"
+order: 8
+keywords:
+  - multi-tenant
+  - security
+  - kafka
+  - observability
+  - system design
+  - authentication
+coverDark: /blog/covers/cover-08-dark.png
+coverLight: /blog/covers/cover-08-light.png
+seoTitle: "Multi-tenant isolation in log0's pipeline"
+seoDescription: "Identity, partition keys, and query guards for tenant separation in log0, and why a shared raw-logs topic still shares backpressure."
+canonical: self
+links: {}
+---
+
+> Putting a `tenant_id` column on every table is the easy 80% of multi-tenancy. It is also the part that makes it look done. A tenant boundary is not a column; it is a property of the whole request path, and like any boundary it is only as strong as its weakest layer. So I audited my own code, layer by layer, and wrote down where the line holds and where it does not. The honest result: the three data layers scope by tenant and hold; the identity edge, who a caller claims to be at the door, was the weak one and this post is also the story of closing it, deriving the tenant from a validated API key instead of trusting a header; and the one soft edge left is fairness, how much a single tenant is allowed to flood. This post is that audit, with the code.
+
+This is post 8 in a series on building [log0](/blog/building-log0-a-multi-tenant-incident-platform-on-kafka). [Post 7](/blog/backpressure-queue-shock-absorber) ended on a question it deliberately left open: `raw-logs` is one shared topic for every tenant, so when the queue absorbs a burst, whose burst is it absorbing? Answering that means looking at what isolates one tenant from another all the way down the stack, and being honest about the places where, today, nothing does.
+
+---
+
+## The column is not the boundary
+
+Almost every multi-tenant tutorial stops at "add a `tenant_id` column and filter your queries by it." That is necessary and it is real, but it quietly assumes the hard parts are already solved: that the `tenant_id` being filtered by is one the caller is allowed to use, and that one tenant cannot starve another by sheer volume even when every query is scoped correctly.
+
+Those two assumptions are the boundary. The column is only the bookkeeping. A useful way to see this is to walk the entire path a log takes, from the front door to the data stores and back out through reads, and ask at each layer a single question: is tenant isolation enforced here in code, or is it merely assumed?
+
+![A five-layer audit of tenant isolation. Layer 1, identity at the door, is now enforced: the ingest path validates the X-API-KEY against auth-service (cached) and derives tenantId from it, so a client-asserted tenant is not trusted. Layer 2, partition key equals tenantId, is enforced: every ingest-path producer keys its records by tenantId for co-location and per-tenant ordering. Layer 3, ClickHouse log_events, is enforced: tenant_id leads the ORDER BY key and every read is a parameterised WHERE tenant_id equals. Layer 4, Postgres incidents, is enforced with an asterisk: a unique constraint on tenant_id and fingerprint, and reads through findByIncidentIdAndTenantId. Layer 5, fairness across tenants, is not built: one shared raw-logs topic, one consumer group, no per-tenant quota or rate limit, so a noisy tenant can flood detection](/blog/charts/diag-tenant-layers.svg)
+
+The shape of that picture is the whole post. The middle holds. One edge, identity, I have since closed; the other, fairness, is still open. Let me walk it.
+
+---
+
+## Layer 1: identity at the door (the edge I closed)
+
+Everything downstream trusts the `tenant_id` attached to a request. So the most important question in the entire system is: where does that `tenant_id` come from, and is it trustworthy?
+
+There are two front doors, and they answer differently.
+
+The [**dashboard / API door**](https://console.log0.in/) (auth-service) is solid. A user logs in, and the tenant is baked into a signed JWT:
+
+```java
+String token = Jwts.builder()
+        .subject(user.getUserId().toString())
+        .claim("tenantId", user.getTenant().getTenantId().toString())
+        .claim("role", user.getRole().name())
+        .signWith(signingKey)   // HMAC-SHA256, server-side secret
+        .compact();
+```
+
+Because the token is signed with a server-side key, a client cannot change the `tenantId` claim without invalidating the signature. The `JwtAuthFilter` validates the signature and pulls `tenantId` out of the verified claims, so for every authenticated endpoint the tenant is cryptographically established, not asserted. That is a real boundary.
+
+The **ingestion door** is the one this audit flagged, and it is the one I have since closed. Machine callers do not log in; they present a long-lived API key. The gateway used to trust an `X-TENANT-ID` header sent alongside it and stamp the event with whatever the caller claimed, which meant that on an untrusted network a client could write into any tenant it liked. The fix is to stop asking the client who it is and instead derive the tenant from the key it holds.
+
+A filter now authenticates every ingest request before the controller runs:
+
+```java
+// ApiKeyAuthFilter, scoped to POST /api/v1/logs
+String apiKey   = request.getHeader(HeaderConstants.API_KEY);
+String tenantId = apiKeyValidator.resolveTenantId(apiKey);  // cached; calls auth only on a miss
+request.setAttribute(TENANT_ATTRIBUTE, tenantId);           // the controller reads this, never a client header
+```
+
+The resolution is auth-service's own method, the one that was always built for exactly this:
+
+```java
+public UUID validateApiKey(String rawKey) {
+    String keyHash = sha256(rawKey);
+    ApiKey apiKey = apiKeyRepository.findByKeyHashAndActiveTrue(keyHash)
+            .orElseThrow(() -> new ResourceNotFoundException("Invalid or inactive API key"));
+    return apiKey.getTenant().getTenantId();   // the tenant the key belongs to
+}
+```
+
+The client no longer asserts its tenant; it is determined by which key it holds. Send tenant A's key, you get tenant A, full stop. An invalid or revoked key is rejected with `401` before anything downstream runs, and `X-TENANT-ID` is gone from the request contract entirely. The identity edge is now as structural as the JWT one: the tenant comes from a verified credential, not a claim a client can forge.
+
+The one real tension was the hot path. The gateway's whole personality (post 4) is that it does nothing slow on the request thread, and a key lookup is a network call to auth plus a database read. The resolution is a short-TTL cache: the first request for a given key validates against auth-service; every request for the next 60 seconds is an in-memory hit. So the per-request cost is a map lookup, the auth call happens at most once per key per minute, and the tradeoff is a bounded revocation lag (a revoked key keeps working until its cache entry expires), which for a logging endpoint is the right trade.
+
+That this check could go on the hot path at all, cache or no cache, is what the benchmark settles.
+
+![Auth throughput at 30 virtual users, zero errors. API-key validate, a SHA-256 hash plus a database lookup, sustains 866 requests per second at p50 28.5ms and p99 77.5ms. JWT issue on login, which runs bcrypt verify plus HS256 signing, sustains only 104 requests per second at p50 232.7ms and p99 2938ms. Validation outpaces login by roughly 8x](/blog/charts/post07-auth-throughput.svg)
+
+The per-request check that closes the gap, `validateApiKey`, is the green bar: a SHA-256 hash and an indexed lookup, **866 req/s at a sub-80ms p99**. It is cheap precisely because it is a fast hash, not a slow one. Login is the purple bar at 104 req/s, and it is slow on purpose: bcrypt's cost factor is a deliberate brake on credential-guessing, which is the right call for a human login and the wrong tool for a per-request check. The architecture already separates the two correctly, slow hash for passwords, fast hash for API keys, and that fast check is now the thing standing at the ingest door, amortized behind a 60-second cache so most requests never pay even its sub-80ms cost.
+
+---
+
+## Layers 2 through 4: the data path (where the line holds)
+
+Once a `tenant_id` is in hand, the rest of the path treats it as a first-class part of the data, not an afterthought filter. This is the part I am happy with, and it is what "not a column" means: isolation is built into the topology and the storage layout, not merely bolted on as a `WHERE` clause.
+
+**Kafka keys every record by tenant on the ingest path.** Every producer from the front door through detection, `raw-logs`, `normalized-logs`, `incident-events`, sends with `tenantId` as the partition key:
+
+```java
+kafkaTemplate.send(KafkaTopics.RAW_LOGS, event.getTenantId(), event);
+```
+
+That one argument, the middle one, does real isolation work. It co-locates a tenant's events on the same partition, which guarantees per-tenant ordering and keeps one tenant's stream a contiguous, separable thing rather than a smear across the topic. It is the cheapest isolation in the system and one of the most structurally important. (The one producer that does not key by tenant is the last hop, `notification-events`, which keys by `incidentId`, because by that point the record is already one specific incident belonging to one tenant, and keeping a single incident's events ordered is what matters there.)
+
+**ClickHouse puts tenant first in the sort key.** The `log_events` table is physically organised by tenant:
+
+```sql
+ORDER BY (tenant_id, timestamp, fingerprint)
+```
+
+`tenant_id` leading the `ORDER BY` means a tenant's rows are stored contiguously, so a tenant-scoped read touches a tight range instead of scanning the table, and every read in the codebase is parameterised on it: `WHERE tenant_id = ? AND fingerprint = ?`. The isolation and the performance come from the same decision.
+
+**Postgres enforces it with a constraint, not merely a filter.** Incident state carries a unique index that has tenancy built into its definition:
+
+```sql
+CREATE UNIQUE INDEX idx_incident_fingerprint_tenant_active
+    ON incident (tenant_id, fingerprint)
+    WHERE status != 'RESOLVED';
+```
+
+Two tenants can produce the identical fingerprint and still get separate incidents, because the uniqueness is scoped to `(tenant_id, fingerprint)`. The database itself refuses to collapse two tenants' incidents into one. Reads go through tenant-scoped methods like `findByIncidentIdAndTenantId(...)`, so a user fetching incident X can only fetch it if X belongs to their tenant.
+
+That is the asterisk on layer 4, and I will be precise about it: most incident endpoints are scoped this way, but one internal callback endpoint, the one that writes back an AI summary, currently looks the incident up by id alone, without the tenant scope. It is reachable only as an internal service call today, not from the public API, but it is an unscoped write and it is on the fix list. An honest audit names the one place the pattern is not yet uniform, so: there it is.
+
+---
+
+## Layer 5: fairness across tenants (the other weak edge)
+
+The data is separated. That is not the same as the tenants being isolated from each other's behaviour. The boundary has a second dimension, and it is the one [Post 7](/blog/backpressure-queue-shock-absorber) pointed at: a shared resource that one tenant can monopolise.
+
+Here is the genuinely reassuring half. At the front door, tenants are already fair, and I can show it. I drove a 9-to-1 traffic skew, one hot tenant generating 90% of the load against a quiet tenant generating the rest, and measured the gateway's accept latency for each.
+
+![A nine-to-one traffic skew between two tenants. The hot tenant sends 136,425 requests, the quiet tenant 15,236. Gateway accept latency is nearly identical for both: p50 7.8ms versus 8.1ms, p95 55.2ms versus 55.5ms, p99 80.2ms versus 78.6ms, a tail delta of only 1.6ms](/blog/charts/post09-tenant-skew.svg)
+
+The hot tenant sent **136,425 requests, the quiet one 15,236**, a nine-to-one skew, and their accept-latency tails are on top of each other: **p99 of 80.2ms versus 78.6ms, a 1.6ms difference**. The quiet tenant's experience at the door does not degrade because a neighbour is screaming. That fairness is not an accident; it falls straight out of accept-fast from post 4. The gateway is a thin asynchronous producer that does no per-tenant work on the request thread, so there is nothing for a hot tenant to contend on. The door is fair for free.
+
+But read that chart for exactly what it proves and nothing more. It proves **accept latency** is tenant-independent. It says nothing about **detection latency**, and that is where the gap lives. Past the door, both tenants' events land on the same `raw-logs` topic and are drained by a single consumer group with no per-tenant quota. If the hot tenant dumps a million events, they sit ahead of the quiet tenant's handful in the same shared backlog, and the quiet tenant's incident detection waits behind the flood. The door is fair; the queue behind it is first-come-first-served. There is no rate limiter, no per-tenant quota, no fairness scheduler anywhere in the pipeline today. I went looking for one in the code specifically to confirm it is absent, and it is.
+
+So the honest statement of layer 5 is: the edge is fair, the interior is not protected. A noisy neighbour cannot slow down another tenant's `202`, but it can absolutely delay another tenant's alerts.
+
+---
+
+## What is not done
+
+This whole post is, in a sense, a "what is not done" section, so let me consolidate it into the concrete fix list rather than soften it:
+
+- **The ingestion gateway now derives the tenant from a validated API key** (this was the highest-priority gap in the original audit; it is closed). What remains is operational, not structural: validation is cached for 60 seconds, so a revoked key has a bounded lag before it stops working, and the cache is per-gateway-instance, so a horizontally-scaled deployment would want a shared cache to make revocation and load uniform across instances.
+- **One incident endpoint writes by id without a tenant scope.** The AI-summary callback looks up the incident without `tenant_id`. It is internal-only today, but it should be tenant-scoped like every other write, and the fix is to thread the tenant through that path.
+- **There is no per-tenant fairness or rate limiting.** One shared `raw-logs` topic and one consumer group mean a high-volume tenant can delay a low-volume tenant's detection. The boundary protects data correctness, not throughput fairness. Per-tenant quotas, or a per-tenant partition strategy, are unbuilt.
+- **Isolation is implicit scoping, not explicit authorization.** The data layers are safe because every query happens to include `tenant_id`, not because a central check returns `403` on a tenant mismatch. That works, but it relies on every future query remembering to scope itself. A shared, enforced tenant-context filter would make the boundary structural instead of disciplined.
+- **All numbers are single-node** (Docker Desktop, 512 MB per service, single Redpanda node, single ClickHouse node, k6). The skew result and the auth throughput characterize this setup; the isolation gaps are properties of the code and do not change with hardware.
+
+The reason to publish the gaps rather than the clean parts is that the gaps are the actual lesson. "Add a `tenant_id` column" is advice everyone already has. "Your tenant boundary is the weakest of your identity check, your data scoping, and your fairness controls, and you should know which one that is" is the part that took building the thing to learn.
+
+---
+
+*Next: [post 9, zero data loss with a dead-letter queue and manual acknowledgement.](/blog/dead-letter-queue-zero-data-loss). The boundary keeps tenants apart; the next problem is keeping a single poisoned message from silently vanishing or stalling a partition. We will look at why log0 acknowledges a Kafka message only after it is safely processed or safely quarantined, never on a silent `try/catch`, and what `raw-logs-dlq` holds when something genuinely cannot be parsed.*
+
+---
+
+### Try log0
+
+log0 is the platform this series is built on, an open, multi-tenant incident pipeline you can run yourself or use hosted.
+
+- Platform: [log0.in](https://log0.in/)
+- Docs: [log0.in/docs](https://log0.in/docs)
+- Console: [console.log0.in](https://console.log0.in/)
+- charfield, the ASCII animation registry behind the log0 front ends: [charfield.log0.in](https://charfield.log0.in/)
+
+Written by [Ashmit JaiSarita Gupta](https://ashmitjsg.vercel.app/). Find me on [LinkedIn](https://www.linkedin.com/in/ashmitjsg/), [GitHub](https://github.com/ashmitjsg), and [X](https://twitter.com/ashmitjsg), and read the rest of the series on [Hashnode](https://engineeringwithashmit.hashnode.dev/series/log0).

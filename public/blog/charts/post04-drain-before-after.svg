@@ -1,0 +1,48 @@
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" font-family="'Geist','Inter',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="grain"><feTurbulence type="turbulence" baseFrequency="1" numOctaves="1" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"/></filter>
+    <style>
+      .mono{font-family:'Geist Mono','JetBrains Mono',ui-monospace,monospace}
+      .title{font-weight:600;font-size:33px;fill:#161310;letter-spacing:-0.5px}
+      .sub{font-weight:400;font-size:14px;fill:#9a9089}
+      .ax{font-weight:400;font-size:12px;fill:#9a9089}
+      .leg{font-weight:400;font-size:13px;fill:#161310}
+      .axtitle{font-weight:500;font-size:12px;fill:#9a9089}
+      .foot{font-weight:400;font-size:12px;fill:#a89e95}
+      .anno{font-weight:500;font-size:13px;fill:#161310}
+      .annom{font-weight:400;font-size:12px;fill:#9a9089}
+    </style>
+  </defs>
+  <rect width="1280" height="720" fill="#f4f1ea"/>
+  <text x="64" y="80" class="title">Batched inserts erase the backlog</text>
+  <text x="64" y="108" class="mono sub">raw-logs consumer lag after a 20s burst &#183; single-row at 300 VU vs batched (size 500) at 400 VU</text>
+
+  <line x1="700" y1="131" x2="722" y2="131" stroke="#a684ff" stroke-width="2.6" /><text x="728" y="135" class="mono leg">before &#183; single-row</text>
+  <line x1="900" y1="131" x2="922" y2="131" stroke="#0BA06B" stroke-width="2.6" /><text x="928" y="135" class="mono leg">after &#183; batched</text>
+
+  <rect x="96" y="168" width="1088" height="424" rx="10" fill="#ffffff" fill-opacity="0.20" stroke="#16131019"/>
+  <line x1="158" y1="560.0" x2="1118" y2="560.0" stroke="#16131019"/><line x1="158" y1="488.0" x2="1118" y2="488.0" stroke="#16131019"/><line x1="158" y1="416.0" x2="1118" y2="416.0" stroke="#16131019"/><line x1="158" y1="344.0" x2="1118" y2="344.0" stroke="#16131019"/><line x1="158" y1="272.0" x2="1118" y2="272.0" stroke="#16131019"/><line x1="158" y1="200.0" x2="1118" y2="200.0" stroke="#16131019"/>
+  <text x="146" y="564.0" text-anchor="end" class="mono ax">0</text><text x="146" y="492.0" text-anchor="end" class="mono ax">15k</text><text x="146" y="420.0" text-anchor="end" class="mono ax">30k</text><text x="146" y="348.0" text-anchor="end" class="mono ax">45k</text><text x="146" y="276.0" text-anchor="end" class="mono ax">60k</text><text x="146" y="204.0" text-anchor="end" class="mono ax">75k</text><text x="158.0" y="585" text-anchor="middle" class="mono ax">0</text><text x="278.0" y="585" text-anchor="middle" class="mono ax">20</text><text x="398.0" y="585" text-anchor="middle" class="mono ax">40</text><text x="518.0" y="585" text-anchor="middle" class="mono ax">60</text><text x="638.0" y="585" text-anchor="middle" class="mono ax">80</text><text x="758.0" y="585" text-anchor="middle" class="mono ax">100</text><text x="878.0" y="585" text-anchor="middle" class="mono ax">120</text><text x="998.0" y="585" text-anchor="middle" class="mono ax">140</text><text x="1118.0" y="585" text-anchor="middle" class="mono ax">160</text>
+  <text transform="translate(116,380) rotate(-90)" text-anchor="middle" class="mono axtitle">consumer lag (messages)</text>
+  <text x="158" y="640" class="mono ax">seconds since burst start</text>
+
+  <polyline points="158.0,560.0 164.0,560.0 170.0,560.0 176.0,560.0 182.0,560.0 188.0,560.0 194.0,560.0 200.0,559.7 206.0,558.6 212.0,559.9 218.0,559.7 224.0,559.5 230.0,559.0 236.0,558.7 242.0,559.5 248.0,559.6 254.0,560.0 260.0,559.9 266.0,559.2 272.0,559.8 278.0,560.0 284.0,560.0 290.0,560.0 296.0,560.0 302.0,560.0 308.0,560.0 314.0,560.0 320.0,560.0 326.0,560.0 332.0,560.0 338.0,560.0 344.0,560.0 350.0,560.0 356.0,560.0 362.0,560.0 368.0,560.0 374.0,560.0 380.0,560.0 386.0,560.0 392.0,560.0 398.0,560.0 404.0,560.0 410.0,560.0 416.0,560.0 422.0,560.0 428.0,560.0 434.0,560.0 440.0,560.0 446.0,560.0 452.0,560.0 458.0,560.0 464.0,560.0 470.0,560.0 476.0,560.0 482.0,560.0 488.0,560.0 494.0,560.0 500.0,560.0 506.0,560.0 512.0,560.0 518.0,560.0 524.0,560.0 530.0,560.0 536.0,560.0 542.0,560.0 548.0,560.0 554.0,560.0 560.0,560.0 566.0,560.0 572.0,560.0 578.0,560.0 584.0,560.0 590.0,560.0 596.0,560.0 602.0,560.0 608.0,560.0 614.0,560.0 620.0,560.0 626.0,560.0 632.0,560.0 638.0,560.0 644.0,560.0 650.0,560.0 656.0,560.0 662.0,560.0 668.0,560.0 674.0,560.0 680.0,560.0 686.0,560.0 692.0,560.0" fill="none" stroke="#0BA06B" stroke-width="2.6"/>
+  <polyline points="158.0,560.0 164.0,560.0 170.0,560.0 176.0,560.0 182.0,560.0 188.0,560.0 194.0,560.0 200.0,543.4 206.0,520.2 212.0,496.3 218.0,472.1 224.0,448.7 230.0,425.8 236.0,400.9 242.0,375.7 248.0,350.9 254.0,324.9 260.0,299.7 266.0,275.3 272.0,250.2 278.0,238.1 284.0,238.1 290.0,240.2 296.0,240.2 302.0,240.2 308.0,240.2 314.0,240.2 320.0,240.2 326.0,240.2 332.0,240.2 338.0,242.6 344.0,242.6 350.0,242.6 356.0,242.6 362.0,242.6 368.0,242.6 374.0,242.6 380.0,245.0 386.0,245.0 392.0,245.0 398.0,245.0 404.0,245.0 410.0,245.0 416.0,245.0 422.0,247.4 428.0,247.4 434.0,247.4 440.0,247.4 446.0,247.4 452.0,247.4 458.0,247.4 464.0,247.4 470.0,249.8 476.0,249.8 482.0,249.8 488.0,249.8 494.0,249.8 500.0,251.7 506.0,251.7 512.0,251.7 518.0,251.7 524.0,251.7 530.0,251.7 536.0,251.7 542.0,251.7 548.0,254.1 554.0,254.1 560.0,254.1 566.0,254.1 572.0,254.1 578.0,254.1 584.0,254.1 590.0,254.1 596.0,256.5 602.0,256.5 608.0,256.5 614.0,256.5 620.0,256.5 626.0,256.5 632.0,256.5 638.0,258.9 644.0,258.9 650.0,258.9 656.0,258.9 662.0,258.9 668.0,258.9 674.0,258.9 680.0,258.9 686.0,261.3 692.0,261.3 698.0,261.3 704.0,261.3 710.0,261.3 716.0,261.3 722.0,263.2 728.0,263.2 734.0,263.2 740.0,263.2 746.0,263.2 752.0,263.2 758.0,263.2 764.0,265.6 770.0,265.6 776.0,265.6 782.0,265.6 788.0,265.6 794.0,265.6 800.0,265.6 806.0,268.0 812.0,268.0 818.0,268.0 824.0,268.0 830.0,268.0 836.0,268.0 842.0,268.0 848.0,268.0 854.0,270.4 860.0,270.4 866.0,270.4 872.0,270.4 878.0,270.4 884.0,270.4 890.0,270.4 896.0,272.8 902.0,272.8 908.0,272.8 914.0,272.8 920.0,272.8 926.0,274.6 932.0,274.6 938.0,274.6 944.0,274.6 950.0,274.6 956.0,274.6 962.0,274.6 968.0,277.0 974.0,277.0 980.0,277.0 986.0,277.0 992.0,277.0 998.0,277.0 1004.0,277.0 1010.0,277.0 1016.0,279.4 1022.0,279.4 1028.0,279.4 1034.0,279.4 1040.0,279.4 1046.0,279.4 1052.0,279.4 1058.0,281.8 1064.0,281.8 1070.0,281.8 1076.0,281.8 1082.0,281.8 1088.0,281.8 1094.0,281.8 1100.0,284.2 1106.0,284.2 1112.0,284.2" fill="none" stroke="#a684ff" stroke-width="2.6"/>
+  <circle cx="278.0" cy="238.1" r="4" fill="#a684ff"/>
+
+  <text x="292.0" y="236.1" class="anno">peak 67,071 &#183; drains ~68 msg/s</text>
+  <text x="292.0" y="254.1" class="annom">single-row insert caps the consumer</text>
+  <text x="578.0" y="548.0" class="anno" fill="#0BA06B">after: peaks ~283, never sustains a backlog</text>
+
+  <line x1="64" y1="664" x2="1216" y2="664" stroke="#16131019"/>
+  <text x="64" y="690" class="mono foot">single laptop &#183; docker desktop &#183; 512MB/svc &#183; redpanda 1-node &#183; clickhouse 24.3 &#183; k6 burst</text>
+  
+  <g transform="translate(1133,672) scale(1.125)">
+    <g stroke="#0BA06B" stroke-width="1.6" opacity="0.55"><line x1="16" y1="7" x2="26" y2="16"/><line x1="16" y1="16" x2="26" y2="16"/><line x1="16" y1="25" x2="26" y2="16"/></g>
+    <g fill="#0BA06B"><circle cx="5" cy="7" r="1.5" opacity="0.45"/><circle cx="5" cy="16" r="1.5" opacity="0.45"/><circle cx="5" cy="25" r="1.5" opacity="0.45"/><circle cx="11" cy="7" r="1.6" opacity="0.7"/><circle cx="11" cy="16" r="1.6" opacity="0.7"/><circle cx="11" cy="25" r="1.6" opacity="0.7"/><circle cx="16" cy="7" r="1.7"/><circle cx="16" cy="16" r="1.7"/><circle cx="16" cy="25" r="1.7"/></g>
+    <circle cx="26" cy="16" r="6" fill="#0BA06B" opacity="0.18"/><circle cx="26" cy="16" r="3.6" fill="#0BA06B"/>
+  </g>
+  <text x="1173" y="696" text-anchor="start" class="mono" font-size="18" font-weight="500" fill="#161310">log0</text>
+  <rect width="1280" height="720" filter="url(#grain)" opacity="0.5" style="mix-blend-mode:overlay"/>
+</svg>

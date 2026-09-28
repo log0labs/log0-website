@@ -1,6 +1,6 @@
 ---
-title: "Anatomy of a fingerprint: how log0 turns 115,489 log lines into one incident"
-description: "How log0 decides a flood of log lines is one bug, not ten thousand: deterministic SHA-256 fingerprinting, no machine learning, O(1) per event. The exact code, the ordering bug that corrupts it, and the failure mode chosen on purpose."
+title: "Deterministic SHA-256 log fingerprinting for incident deduplication"
+description: "log0 normalizes each error line and hashes a stable signature so repeated occurrences share one fingerprint—no ML, O(1) per event. Includes regex ordering pitfalls and the under-dedup behavior used on ambiguous messages."
 slug: how-log0-deduplicates-logs-into-incidents
 date: "2026-07-18"
 order: 2
@@ -15,8 +15,8 @@ keywords:
   - distributed systems
 coverDark: /blog/covers/cover-02-dark.png
 coverLight: /blog/covers/cover-02-light.png
-seoTitle: "Anatomy of a fingerprint: how log0 deduplicates logs into incidents"
-seoDescription: "log0 collapses 115,489 log lines into one incident with a deterministic SHA-256 fingerprint, no ML, O(1) per event. The exact code, the regex ordering bug that corrupts it, and the under-dedup failure mode chosen on purpose."
+seoTitle: "SHA-256 log fingerprints in log0"
+seoDescription: "How one error template became 115,489 lines and one incident: fingerprint fields, hash code path, and intentional under-dedup."
 canonical: self
 links:
   hashnode: https://engineeringwithashmit.hashnode.dev/how-log0-deduplicates-logs-into-incidents
