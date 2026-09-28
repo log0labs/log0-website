@@ -17,7 +17,7 @@ This section documents the internal structure of each service - the classes, the
 | Incident Service | ✅ ~80% complete | Kafka consumer, state machine, REST API, PostgreSQL (Flyway), DLQ, notifications all done. Filters and ClickHouse log lookup pending. |
 | Notification Service | ✅ ~70% complete | Kafka consumer, Slack Bot API, Block Kit alerts, DLQ done. Slack interactions, per-tenant token, WhatsApp pending. |
 | Auth Service | ✅ ~90% complete | Tenant, User, ApiKey, RefreshToken entities; JwtUtil, AuthService, TenantService, UserService, ApiKeyService; JwtAuthFilter, SecurityConfig; all controllers. Frontend integration pending. |
-| AI Summary Service | ✅ ~80% complete | Strategy pattern (Groq/OpenAI/Gemini/Anthropic), PromptBuilder, async callback. Redis cache and fallback template pending. |
+| AI Summary Service | ✅ Summary parity (M0) | Python FastAPI: LCEL summary chain, LangChain LLMs, PATCH callback, LangSmith optional. Investigations / LangGraph not started on this service yet. |
 
 ---
 
@@ -670,115 +670,31 @@ classDiagram
 
 ## AI Summary Service
 
-**Responsibility:** Receive a summary request from the Incident Service, build a structured LLM prompt from the incident context, call the configured LLM provider, and write the result back to the Incident Service via REST. Runs as a standalone service on port 8085 so it can fail, retry, and scale independently of the incident pipeline.
+**Stack:** Python 3.13, FastAPI, LangChain, uvicorn on port **8085**.
 
-**Key design decisions:**
-- **Strategy Pattern** for LLM providers - `LlmProvider` interface with interchangeable implementations (Groq, OpenAI, Gemini, Anthropic). Active provider selected by `ai.provider` in `application.yml`. See ADR-008.
-- **Callback pattern** - the Incident Service fires `POST /api/v1/summaries` via `@Async` (non-blocking), then the AI Service writes the result back via `PATCH /api/v1/incidents/{id}/ai-summary`. No Kafka topic required.
-- **Prompt is self-contained** - `SummaryRequest` carries everything needed (topMessages, severities, time range). No ClickHouse query for MVP.
-- **Graceful degradation** - if the LLM call times out or the provider is down, the incident still exists and is fully functional. `ai_summary` stays null and the Slack message renders without it.
+**Responsibility:** Accept `POST /api/v1/summaries` from incident-service, run an LLM summary in the background, and `PATCH` the result to `/api/v1/incidents/{id}/ai-summary` (`aiSummary` camelCase). Same contract as the former Java service.
 
-```mermaid
-classDiagram
-    class SummaryController {
-        -AiSummaryService aiSummaryService
-        +summarize(request: SummaryRequest): ResponseEntity~Void~
-        Note: POST /api/v1/summaries\nCalled async by Incident Service
-    }
+**Key modules (current code):**
 
-    class AiSummaryService {
-        -PromptBuilder promptBuilder
-        -LlmProvider llmProvider
-        -IncidentServiceClient incidentClient
-        +generateSummary(request: SummaryRequest): void
-        Note: Orchestrates: build prompt → call LLM → callback\nHandles timeout and provider errors gracefully\nMVP: prompt uses topMessages from SummaryRequest\nFuture (Phase 4.5): inject ClickHouseLogRepository\nto enrich prompt with live top-10 query\nFuture (Phase 9): inject RedisCache to skip LLM on hit
-    }
+| Module | Role |
+|---|---|
+| `app/api/summaries.py` | 202 response; schedules background task |
+| `app/summary/service.py` | Orchestrates chain + incident PATCH; logs errors, does not fail incident creation |
+| `app/summary/chain.py` | LCEL prompt → structured output → legacy text format for the console |
+| `app/llm/` | `Settings`-driven model resolution (`LLM_*`, provider API keys) |
+| `app/integrations/incident_service.py` | httpx client for `PATCH .../ai-summary` |
+| `app/config.py` | pydantic-settings; validates keys for configured providers |
+| `app/observability.py` | Exports LangSmith env vars for the SDK |
+| `app/schemas/summary.py` | `SummaryRequest` / `IncidentSummary` (camelCase JSON) |
 
-    class PromptBuilder {
-        +build(request: SummaryRequest): String
-        Note: Builds structured prompt from SummaryRequest fields\nservice, severity, occurrences, time range, topMessages\ntemperature=0.2 target, max_tokens=300
-    }
+**Design notes:**
 
-    class LlmProvider {
-        <<interface>>
-        +generateSummary(prompt: String): String
-        Note: Strategy interface - one implementation active at runtime\nSelected by ai.provider config property
-    }
+- **Callback, not Kafka** - incident-service calls ai-service over HTTP (`@Async` + `RestTemplate`); ai-service writes back over HTTP.
+- **Self-contained request** - `SummaryRequest` includes `topMessages`; no ClickHouse read in the summary path today.
+- **Graceful degradation** - LLM or PATCH failures are logged; the incident row remains valid with `ai_summary` null.
+- **Pluggable models** - per-purpose `LLM_SUMMARY`, etc. (`provider:model`); see ADR-008 implementation update.
 
-    class GroqProvider {
-        -String apiKey
-        -String model
-        -RestClient restClient
-        +generateSummary(prompt: String): String
-        Note: Default provider (free tier)\nOpenAI-compatible API: POST /openai/v1/chat/completions\nModel: llama-3.3-70b-versatile\nBase URL: https://api.groq.com
-    }
-
-    class OpenAiProvider {
-        -String apiKey
-        -String model
-        -RestClient restClient
-        +generateSummary(prompt: String): String
-        Note: POST /v1/chat/completions\nBase URL: https://api.openai.com
-    }
-
-    class GeminiProvider {
-        -String apiKey
-        -String model
-        -RestClient restClient
-        +generateSummary(prompt: String): String
-        Note: Google Generative Language REST API\nDifferent request/response shape from OpenAI
-    }
-
-    class AnthropicProvider {
-        -String apiKey
-        -String model
-        -RestClient restClient
-        +generateSummary(prompt: String): String
-        Note: Anthropic Messages API\nPOST /v1/messages
-    }
-
-    class IncidentServiceClient {
-        -RestClient restClient
-        +updateAiSummary(incidentId: UUID, summary: String): void
-        Note: PATCH /api/v1/incidents/:incidentId/ai-summary\nCalls back into Incident Service to persist result
-    }
-
-    class SummaryRequest {
-        -UUID incidentId
-        -String tenantId
-        -String serviceName
-        -String environment
-        -String severity
-        -Long occurrenceCount
-        -Instant firstSeenAt
-        -Instant lastSeenAt
-        -List~String~ topMessages
-        Note: @Builder @Getter\nCarries everything the prompt needs\nNo ClickHouse query required for MVP
-    }
-
-    class AiConfig {
-        -String provider
-        -GroqProperties groq
-        -OpenAiProperties openai
-        -GeminiProperties gemini
-        -AnthropicProperties anthropic
-        Note: @ConfigurationProperties(prefix="ai")\nai.provider selects the active LlmProvider bean\nvia @ConditionalOnProperty on each implementation
-    }
-
-    SummaryController --> AiSummaryService
-    AiSummaryService --> PromptBuilder
-    AiSummaryService --> LlmProvider
-    AiSummaryService --> IncidentServiceClient
-    GroqProvider ..|> LlmProvider
-    OpenAiProvider ..|> LlmProvider
-    GeminiProvider ..|> LlmProvider
-    AnthropicProvider ..|> LlmProvider
-    AiSummaryService --> SummaryRequest : receives
-    AiConfig --> GroqProvider
-    AiConfig --> OpenAiProvider
-    AiConfig --> GeminiProvider
-    AiConfig --> AnthropicProvider
-```
+The Java class diagram (Strategy `LlmProvider`, `PromptBuilder`, Spring controllers) described earlier versions of this service and is kept only as historical context in ADR-008.
 
 ---
 
