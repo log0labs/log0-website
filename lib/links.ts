@@ -10,4 +10,5 @@ export const links = {
   blog: "/blog",
   blogSeries: "https://engineeringwithashmit.hashnode.dev/series/log0",
   console: "https://console.log0.in",
+  enterpriseEmail: "ashmitgupta.official@outlook.com",
 } as const;
