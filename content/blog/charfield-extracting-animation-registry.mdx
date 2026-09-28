@@ -1,0 +1,201 @@
+---
+title: "Packaging shared UI as a copy-in registry (charfield)"
+description: "log0's ASCII canvas animations were extracted into charfield, an npm CLI that copies field source into your repository so each app owns the code without a shared runtime dependency."
+slug: charfield-extracting-animation-registry
+date: "2026-10-03"
+order: 13
+keywords:
+  - frontend
+  - npm
+  - design systems
+  - open source
+  - developer experience
+coverDark: /blog/covers/cover-13-dark.png
+coverLight: /blog/covers/cover-13-light.png
+seoTitle: "charfield: copy-in registry for ASCII canvas fields"
+seoDescription: "How log0 moved procedural ASCII animations into a shadcn-style registry with npx charfield add."
+canonical: self
+links: {}
+---
+
+> The background animation on the log0 landing page is not a video and not a GIF. It is a canvas that renders a procedural physics field as ASCII glyphs, and there are forty-four of them: galaxies, black holes, quantum interference, Lorenz attractors, Ising lattices, Feynman diagrams. They were born inside one Next.js app, locked behind a `FIELDS` map and a `variant` string, usable nowhere else without copy-paste. This post is about lifting them out into [**charfield**](https://charfield.log0.in/), my first published npm package: a shadcn-style copy-in registry where `npx charfield add galaxy` writes the source of one animation into your repo, with zero runtime dependency and no version to pin. The proof it worked is that the app the engine came from now consumes the package like any other, pulling in only the three fields it renders.
+
+This is post 13 in a series on building [log0](/blog/building-log0-a-multi-tenant-incident-platform-on-kafka). The previous twelve posts were backend: Kafka, ClickHouse, state machines, the broker that fell over. This one steps off the pipeline to the surface, because a platform is also the thing people see, and log0 has several front ends, a marketing site, a [console](https://console.log0.in/), a couple of satellite pages, that should feel like one product. The animation engine is part of what makes them feel related. Getting it into all of them without forking it four ways turned into a small but real packaging problem, and the way I solved it is worth a post on its own.
+
+---
+
+## What a field is
+
+The whole system rests on one tiny contract. A field is a pure function: given a cell's pixel center, the elapsed time, and the canvas dimensions, return how bright that cell should be, from 0 to 1.
+
+```ts
+export interface FieldEnv {
+  W: number;      // css px width of the canvas
+  H: number;      // css px height of the canvas
+  speed: number;  // rotation / flow speed multiplier
+}
+
+export type FieldFn = (cx: number, cy: number, t: number, env: FieldEnv) => number;
+```
+
+That is the entire interface, and it is the reason there can be forty-four of these without the codebase sprawling. Every field is one file that imports nothing but this type and exports one function. Here is the galaxy, whole:
+
+```ts
+import type { FieldFn } from "../types";
+
+/** GALAXY: soft 5-arm spiral disk, faint center, broad glow ring. */
+export const galaxy: FieldFn = (cx, cy, t, { W, H, speed }) => {
+  const dx = cx - W * 0.5;
+  const dy = cy - H * 0.5;
+  const r = Math.hypot(dx, dy);
+  if (r < 43.4) return 0;                       // hollow core
+  const ang = Math.atan2(dy, dx);
+  const rot = t * 1.1 * speed + 120 / (r * 0.14 + 14); // inner spins faster
+  const spiral = Math.sin(ang * 5 + Math.log(r + 10) * 3.1 - rot);
+  let bri = Math.pow(spiral * 0.5 + 0.5, 0.65) * 0.85;
+  const ring = Math.exp(-((r - 62) * (r - 62)) / 3200);
+  bri = (bri + ring * 1.25) * Math.max(0, 1 - r / (Math.hypot(W, H) * 0.42));
+  return Math.min(1, bri);
+};
+```
+
+No canvas code, no React, no state. It is differential rotation and a glow ring expressed as a number per pixel. The shared canvas component samples this function once per cell per frame, maps the result onto a brightness ramp of glyphs (`" .·:-=+*coO0#%@"`), and draws it, plus a mouse gravity-well that warps and brightens cells near the cursor. The field does not know any of that exists. That separation is what made the next step possible.
+
+---
+
+## The problem: the engine was married to the catalog
+
+In the original app, the canvas component did not take a field as input. It took a string, looked the function up in a hard-coded `FIELDS` map of all forty-four, and rendered it. That is fine when one app owns all of them, and it is a wall the moment a second app wants three. You cannot pull one field out without dragging the entire map, the type, and the variant union along with it, and once you copy that wall of code into a second repo, the two copies start drifting the first time you tweak the math in one of them.
+
+The fix was a one-line inversion of control: the canvas stops owning the catalog and takes a field as a prop instead.
+
+```tsx
+type Props = {
+  field?: FieldFn;   // the procedural field; omit when rendering an image via `src`
+  src?: string;      // image URL: sample a picture into an ASCII portrait
+  cell?: number; color?: string; speed?: number; interactive?: boolean;
+  // ...
+};
+
+// inside the render loop, the component calls whatever it was handed:
+const bri = field ? field(cx + cell * 0.5, cy + cell * 0.5, t, env) : 0;
+```
+
+Now the engine and the fields are independent. The component is one file that knows how to animate a `FieldFn`; each field is one file that is a `FieldFn`. Nothing references a central map, so any field can travel on its own as long as it brings the type with it. That is exactly the shape a copy-in registry wants.
+
+![A three-stage architecture diagram. Stage one, log0-website, holds components slash ascii-hero with 44 procedural fields behind a FIELDS map and a variant string. An extract arrow leads to stage two, the charfield registry: registry slash fields slash star dot ts (44 of them), a build-registry dot mjs script that emits registry dot json, served from GitHub raw. A charfield add arrow leads to stage three, your repo, where npx charfield add galaxy writes src slash charfield containing types plus galaxy, yours to edit with no runtime dependency. A note records that before charfield the only way into log0-console or any other app was hand copy-paste that drifted out of sync. A thesis line states this is shadcn's model not a library: npx charfield add copies the source in, so each app owns and edits its own fields, the registry is only registry dot json plus raw dot ts files on GitHub, and even log0-website now consumes the package and pulls only the three fields it renders](/blog/charts/diag-charfield-arch.svg)
+
+---
+
+## The decision: a copy-in registry, not a library
+
+There are two honest ways to ship reusable React code. One is a normal npm library: publish a package, consumers `import { Galaxy } from "charfield"`, and a bundler tree-shakes out what they do not use. The other is the shadcn model: ship the source, and a CLI copies the files into the consumer's repo so they own them outright.
+
+I went with the second, and the reason is the nature of these things. A field is not a black box you configure from the outside; it is twelve lines of math you are meant to reach into. People will want to change the galaxy's arm count, retune the glow, slow the rotation, swap the color ramp. A library makes that hostile: your edits live downstream of an import you cannot touch, and the next version bump fights you. Copy-in makes it the default: the file is in your `src/`, it is yours, edit the `Math.sin` and move on. The cost is that you give up automatic upgrades, which for a pile of hand-tunable animations is a cost worth paying. A versioned library can be bolted on later if anyone wants locked installs; the editable copy is the right primitive to start from.
+
+---
+
+## The registry is a JSON manifest and a folder of files
+
+There is no clever infrastructure behind this. A build script reads the fields directory and writes a manifest. That is the entire "registry."
+
+```js
+// scripts/build-registry.mjs
+const fields = readdirSync("registry/fields")
+  .filter((f) => f.endsWith(".ts"))
+  .map((f) => f.replace(/\.ts$/, ""));
+
+const items = {
+  types:  { files: ["types.ts"] },
+  canvas: { files: ["ascii-field.tsx"], deps: ["types"], npm: ["react"] },
+};
+for (const name of fields) {
+  items[name] = { files: [`fields/${name}.ts`], deps: ["types"] };
+}
+
+writeFileSync("registry/registry.json", JSON.stringify({ items }, null, 2));
+```
+
+Every field is an item that ships one file and declares one dependency, `types`. The canvas item ships the component and additionally declares a peer npm dependency, `react`. That is the whole dependency model, and because it is generated by scanning a directory, adding a forty-fifth field is a matter of dropping a file in and re-running the script. There is no registry to hand-edit and no chance of the manifest disagreeing with the folder.
+
+---
+
+## What `npx charfield add galaxy` does
+
+The CLI is a single zero-dependency file built for Node 18's built-in `fetch`. When you run `add`, it fetches the manifest, resolves the requested item and its dependencies into a deps-first, de-duplicated list, and writes each file into your project.
+
+```ts
+// resolve an item + its deps into an ordered, de-duped list (deps first)
+function resolve(reg: Registry, names: string[], seen = new Set<string>()): string[] {
+  for (const n of names) {
+    const item = reg.items[n];
+    if (!item) throw new Error(`unknown item: "${n}" (try: charfield list)`);
+    resolve(reg, item.deps ?? [], seen);   // depth-first, so types lands before galaxy
+    seen.add(n);
+  }
+  return [...seen];
+}
+```
+
+So `add galaxy` resolves to `[types, galaxy]`, fetches `types.ts` and `fields/galaxy.ts` from GitHub, and writes them under `src/charfield/` (or `charfield/` if you have no `src/`). If you pull the `canvas` item, the CLI prints `npm i react` at the end, because React is the one thing it cannot copy in for you. No lockfile, no `node_modules` entry, no `charfield` in your `package.json`.
+
+![A four-step diagram titled inside one npx charfield add galaxy. Step one, read registry: GET registry dot json from GitHub raw, the manifest of items. Step two, resolve deps, drawn in green: galaxy declares types, deps first and deduped, giving the list types then galaxy. Step three, write files: GET each dot ts source, mkdir src slash charfield, write types plus galaxy. Step four, peer deps, drawn in purple: print npm i react, only if the canvas item is pulled, because React is never bundled. Below, a note that in the manifest every field declares deps types and the canvas item adds npm react, and that is the whole dependency model. A result line states galaxy now lives in your repo as two files you own, with no charfield in package dot json, nothing to import from node_modules, and no version to bump; to update, re-run add or edit the math in place, trading ownership for automatic upgrades](/blog/charts/diag-charfield-add.svg)
+
+---
+
+## The distribution trick: the registry is only GitHub
+
+The detail I am happiest with is that the CLI does not bundle the fields at all. It fetches them live from `raw.githubusercontent.com/ashmitjsg/charfield/main/registry` at the moment you run `add`. The npm package ships only the built CLI; `files: ["dist"]` in `package.json` means the forty-four fields are not even in the published tarball.
+
+The consequence is that updating an animation does not touch npm. I push a change to a field's source on GitHub, and the next person who runs `charfield add` gets it. Publishing to npm is reserved for changes to the CLI itself. It makes the catalog feel like a living gallery rather than a frozen release, and it keeps the published package tiny. The same property is also a sharp edge, which I will come back to.
+
+The publish itself had two small war stories worth saving anyone else the hour. My npm account uses a passkey rather than a TOTP authenticator, so the CLI has no one-time-password to prompt for and `npm publish` fails the 2FA step; the way through is a granular access token with 2FA-bypass set in `~/.npmrc`. And npm warned about an "invalid bin" until I wrote the `bin` field as an object, `{ "charfield": "dist/cli.js" }`, with no `./` prefix, rather than a bare string. Neither is documented anywhere obvious.
+
+---
+
+## The real test: the origin app became a consumer
+
+The clearest sign that the extraction was real and not cosmetic is that log0-website, the app all of this came out of, now uses charfield instead of its old in-tree copy. It imports the published canvas component and pulls in only the three fields it renders:
+
+```tsx
+import AsciiField from "@/charfield/ascii-field";
+import { flowfield, phasespace, trappedion } from "@/charfield/fields";
+
+const FIELDS = { flowfield, phasespace, trappedion };
+// <AsciiField field={FIELDS[name]} {...props} />
+```
+
+This is the dogfooding that justifies the whole exercise. The site that once carried all forty-four fields as a monolith now carries three, the ones it shows, copied in from the same registry every other app pulls from. The engine has exactly one home, and the catalog is a thing you take from rather than a thing you embed.
+
+---
+
+## Seeing it before you install it
+
+A visual library has one job a code snippet cannot do: let you see the thing before you commit to it. charfield ships a small Next.js site at [`charfield.log0.in`](https://charfield.log0.in/) that is two surfaces. The landing page is a gallery, one live, mouse-reactive tile per field, each tagged by its physics domain and each with a one-click button that copies its exact `npx charfield add <name>` command. The `/playground` is the deeper tool: pick any field, then drag real controls for cell size, speed, cursor radius, color, background, and interactivity while the canvas updates live, and the page emits both the install command and the exact `<AsciiField ... />` JSX for the settings you arrived at. You tune it on the site, copy the snippet, and paste a configured component into your app.
+
+The part that keeps this honest is that the site builds its gallery from the same registry the CLI installs from, through a `sync-registry.mjs` step that runs before every dev and build. The previews cannot drift from what `add` writes into your repo, because they are the same files.
+
+---
+
+## What is not done
+
+- **Copy-in has no upgrade path, by design, and that cuts both ways.** Re-running `add` overwrites the file, which silently clobbers any local edits you made, and there is no `diff` or merge to warn you. The package trades automatic upgrades for ownership; the missing piece is a command that shows what changed upstream before you overwrite, so updating is a decision rather than a surprise.
+- **The registry is pinned to `main`, with no versions.** The CLI fetches from the `main` branch, so a change I push to a field reaches everyone's next `add` immediately, and there is no way to request `galaxy` as it was at a particular release. The convenience of "push to update, no republish" and the risk of "an upstream edit changes your next install" are the exact same mechanism. Tagged registry versions and a `--ref` flag are the obvious next step.
+- **The gallery shows the what, not the how.** The site previews every field and hands you its `add` command, but there is no per-field page that explains the math behind the animation, the differential rotation in the galaxy or the falloff in the gravity well. For a library people are meant to reach in and edit, a written walk-through of each function would lower the barrier to tuning it, and none exists yet.
+- **The CLI has no tests and the fields have none either.** A field that throws or returns `NaN` for some `(cx, cy)` would render as a dead region with nothing to catch it. The functions are small and pure, which makes them very testable, and none of them are tested.
+- **The default-directory heuristic is crude.** The CLI writes to `src/charfield/` if a `src/` folder exists and `charfield/` otherwise. That covers the common Next.js and Vite layouts and quietly does the wrong thing for anything else; an explicit `--dir` is the escape hatch, but the default deserves to be smarter or to ask.
+
+The reason this package exists is smaller than it sounds and the reason it is worth writing about is larger. The immediate goal was to stop copy-pasting an animation between my own apps. The general lesson is that "make it reusable" has two very different answers, and the right one depends on whether people are meant to read and change the code or only call it. For twelve lines of physics that someone will always want to retune, the version that hands them the source and gets out of the way beats the version that hides it behind an import. Shipping it taught me more about npm, registries, and dependency resolution than any backend service in this series did, which is the other reason it earned a post.
+
+---
+
+### Try log0
+
+log0 is the platform this series is built on, an open, multi-tenant incident pipeline you can run yourself or use hosted.
+
+- Platform: [log0.in](https://log0.in/)
+- Docs: [log0.in/docs](https://log0.in/docs)
+- Console: [console.log0.in](https://console.log0.in/)
+- charfield, the ASCII animation registry from this post: [charfield.log0.in](https://charfield.log0.in/)
+
+Written by [Ashmit JaiSarita Gupta](https://ashmitjsg.vercel.app/). Find me on [LinkedIn](https://www.linkedin.com/in/ashmitjsg/), [GitHub](https://github.com/ashmitjsg), and [X](https://twitter.com/ashmitjsg), and read the rest of the series on [Hashnode](https://engineeringwithashmit.hashnode.dev/series/log0).

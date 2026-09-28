@@ -1,6 +1,6 @@
 ---
-title: "From fingerprints to an incident: counting in windows, paging once"
-description: "A fingerprint names a bug; ten of them inside five minutes is an incident. How log0's clustering service counts in tumbling event-time windows, emits exactly once per window, and the two failure modes of an in-memory store with no eviction."
+title: "Windowed fingerprint counting for incident detection in Kafka"
+description: "log0's clustering consumer increments per-fingerprint counts in 5-minute tumbling event-time windows and publishes one incident-events record when a window reaches ten occurrences—benchmark p50 403ms from log to incident row."
 slug: from-fingerprints-to-an-incident-counting-in-windows
 date: "2026-07-25"
 order: 3
@@ -15,8 +15,8 @@ keywords:
   - multi-tenant
 coverDark: /blog/covers/cover-03-dark.png
 coverLight: /blog/covers/cover-03-light.png
-seoTitle: "From fingerprints to an incident: log0's windowed clustering"
-seoDescription: "log0 counts each fingerprint inside a 5-minute tumbling window and pages once at ten occurrences. The emit-once guard, p50 403ms detection, and two honest failure modes of an in-memory window store."
+seoTitle: "Tumbling windows and thresholds in log0 clustering"
+seoDescription: "5-minute event-time windows, emit-once guards, and in-memory store limits in log0's incident detector (p50 403ms e2e)."
 canonical: self
 links:
   hashnode: https://engineeringwithashmit.hashnode.dev/from-fingerprints-to-an-incident-counting-in-windows

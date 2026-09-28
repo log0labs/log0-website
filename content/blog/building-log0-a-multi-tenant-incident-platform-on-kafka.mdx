@@ -1,6 +1,6 @@
 ---
-title: "Building log0: a multi-tenant incident platform on Kafka"
-description: "A working incident-management backend, built solo on one laptop, explained from the first measured number to the last honest caveat. The map for the whole series."
+title: "Overview: log0's multi-tenant incident pipeline on Kafka"
+description: "Series map for log0: HTTP log ingest, fingerprint deduplication, windowed clustering, incident lifecycle, and Slack notification across seven Spring Boot services—with load-test figures from a single-laptop deployment."
 slug: building-log0-a-multi-tenant-incident-platform-on-kafka
 date: "2026-06-28"
 order: 0
@@ -15,8 +15,8 @@ keywords:
   - multi-tenant
 coverDark: /blog/covers/cover-00-dark.png
 coverLight: /blog/covers/cover-00-light.png
-seoTitle: "Building log0: a multi-tenant incident platform on Kafka"
-seoDescription: "How log0 collapses a flood of duplicate error logs into one owned incident: seven Spring Boot services on Kafka, ClickHouse and Postgres, load-tested on a single laptop."
+seoTitle: "log0 architecture overview: Kafka incident pipeline"
+seoDescription: "Service diagram and data flow for log0: dedup, clustering, Postgres incidents, ClickHouse analytics, and a 115,489:1 dedup ratio under load on one laptop."
 canonical: self
 links:
   hashnode: https://engineeringwithashmit.hashnode.dev/building-log0-a-multi-tenant-incident-platform-on-kafka
@@ -70,7 +70,7 @@ Read top to bottom, that is the entire data path:
 
 Two things never flow backwards, and that is the point. Nothing downstream can apply backpressure to the gateway by making it wait, and a single poison message cannot freeze the pipeline, because normalization routes anything it cannot parse to a dead-letter topic, `raw-logs-dlq`, instead of dying on it.
 
-`auth-service` sits outside the data path: it issues JSON Web Tokens and every other service validates them locally, with no network call back to auth on the hot path. That tradeoff is discussed in post 14 in this series.
+`auth-service` sits outside the data path: it issues JSON Web Tokens and every other service validates them locally, with no network call back to auth on the hot path. Login versus API-key validation throughput is measured in [post 8](/blog/multi-tenancy-is-a-boundary) in this series.
 
 ---
 
