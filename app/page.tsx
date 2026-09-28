@@ -7,7 +7,7 @@ import Hero from "@/components/landing/Hero";
 import Problem from "@/components/landing/Problem";
 import Solution from "@/components/landing/Solution";
 import Features from "@/components/landing/Features";
-import Blog from "@/components/landing/Blog";
+import Pricing from "@/components/landing/Pricing";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
@@ -36,6 +36,7 @@ export default function Home() {
           <Problem />
           <Solution />
           <Features />
+          <Pricing />
           {/* <Blog /> */}
         </main>
       </div>
