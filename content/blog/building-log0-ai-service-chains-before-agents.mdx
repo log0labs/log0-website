@@ -1,0 +1,207 @@
+---
+title: "Building log0's AI Service: Chains Before Agents"
+description: "Why log0 uses a LangChain LCEL pipeline for auto incident summaries and LangGraph only for Investigate with AI. Python migration, structured output boundaries, LangSmith tracing, and chains vs agents as an engineering choice."
+slug: building-log0-ai-service-chains-before-agents
+date: "2026-10-10"
+order: 14
+keywords:
+  - langchain
+  - langgraph
+  - llm
+  - fastapi
+  - incident management
+  - ai engineering
+  - observability
+coverDark: /blog/covers/cover-14-dark.png
+coverLight: /blog/covers/cover-14-light.png
+seoTitle: "Building log0's AI service: chains before agents"
+seoDescription: "Auto summaries stay a one-call LCEL chain; investigation needs LangGraph. Design rationale, HTTP 202 semantics, structured output validation, and what ships today vs planned."
+canonical: self
+links: {}
+---
+
+> log0's first AI feature generates a short summary for every new incident: what is failing, a possible cause, and recommended actions. The workflow is intentionally simple: one model call, fixed input, structured output, no tools and no branching. I replaced the Java ai-service with Python and FastAPI, kept the existing request and callback payloads incident-service already uses, and implemented the summary as a LangChain pipeline with an LCEL model step. The next feature, **Investigate with AI**, is different: multiple evidence sources, branching, verification loops, durable state, and engineer approval. That is where LangGraph becomes useful. This post is about why those two workflows use different abstractions.
+
+This is post 14 in a series on building [log0](/blog/building-log0-a-multi-tenant-incident-platform-on-kafka). [Post 11](./11-ai-summary-async-callback.md) explained why incident creation never waits on the model: one `@Async` boundary on the incident side, a callback that PATCHes `ai_summary` later or not at all. That boundary still holds. The Python ai-service now returns `202` before summary generation starts.
+
+---
+
+## Same JSON contract, new Python runtime
+
+The migration was intentionally narrow. incident-service still POSTs the same body (incident id, tenant, service, severity, counts, top error lines). The ai-service still PATCHes the same legacy plain-text `ai_summary` the console and Slack already render. What changed is the runtime: typed settings, LangChain for model wiring, LangSmith for traces, and module boundaries so HTTP handlers do not absorb orchestration logic.
+
+The architecture also calls for an internal service token on `/api/v1/summaries`. That guard is not on the endpoint yet; the JSON contract and callback path are what production uses today. When the token lands, it wraps the same handler rather than changing the payload.
+
+What ships in this slice is **auto summary on NEW incidents** only. JWT-protected investigation APIs, Postgres persistence for investigations, and SSE progress for long runs are part of the broader first ai-service release and come after the summary path is stable.
+
+---
+
+## The summary workflow and the `202`
+
+In post 11, the Java ai-service returned `202 Accepted` after the model call and PATCH finished. The only real async hop was `@Async` on incident-service.
+
+The Python handler schedules summary generation as an in-process background task and returns immediately:
+
+```python
+@router.post("", status_code=status.HTTP_202_ACCEPTED)
+async def create_summary(
+    request: SummaryRequest,
+    background_tasks: BackgroundTasks,
+) -> Response:
+    background_tasks.add_task(generate_and_store_summary, request)
+    return Response(status_code=status.HTTP_202_ACCEPTED)
+```
+
+That is FastAPI `BackgroundTasks`, not a durable queue: work runs on the same process after the response is sent. For a best-effort summary that matches post 11's failure posture, that is enough. Long-running investigations will need a separate runner with cancellation and persistence.
+
+`generate_and_store_summary` still swallows errors and logs them. A throttled provider leaves the incident usable with `ai_summary = null`. The ai-service `202` means **accepted for background work**, not **summary already stored**.
+
+![Auto-summary path (shipped today): FastAPI returns 202 before the model runs, then a background linear LLM pipeline (LangChain LCEL) formats incident context, runs prompt to structured IncidentSummary, converts to legacy plain text, and PATCHes incident-service](/blog/charts/diag-ai-lcel-chain.svg)
+
+---
+
+## Why a chain is enough
+
+The choice is not "LangChain vs LangGraph." It follows the workflow.
+
+The summary has one model call, fixed input, a known output schema, no tool calls, no intermediate state, and no branching.
+
+Auto summaries do not need an agent loop:
+
+1. `format_incident_context(request)` (deterministic)
+2. `ChatPromptTemplate | model.with_structured_output(IncidentSummary)` (one probabilistic step)
+3. `format_legacy_summary_text(structured)` (deterministic)
+4. PATCH incident-service (deterministic)
+
+The LLM is responsible for interpretation. Everything around it that can be deterministic stays deterministic.
+
+```python
+def build_summary_chain(model: BaseChatModel):
+    structured_model = model.with_structured_output(IncidentSummary)
+
+    def invoke(request: SummaryRequest) -> str:
+        incident_context = format_incident_context(request)
+        structured: IncidentSummary = (_prompt | structured_model).invoke(
+            {"incident_context": incident_context}
+        )
+        return format_legacy_summary_text(structured)
+
+    return RunnableLambda(invoke)
+```
+
+The model call itself is LCEL (`_prompt | structured_model`). The whole operation is wrapped in `RunnableLambda` so request formatting and legacy output formatting stay inside one chain boundary the service can `.invoke()` once.
+
+Summary models are selected by **purpose** (`LLM_SUMMARY=provider:model`), not a single global default, so investigation can use a different model later without touching the summary path.
+
+---
+
+## Structured output and the application boundary
+
+The summary is consumed by existing application code. Returning free-form text from the model would add parsing and format drift (`Summary:` headers, bullet lists) that the console already assumes.
+
+`IncidentSummary` defines the contract:
+
+```python
+class IncidentSummary(CamelModel):
+    summary: str
+    possible_cause: str
+    recommended_actions: list[str]
+```
+
+`model.with_structured_output(IncidentSummary)` gives the model a schema to target and lets LangChain parse the provider response into that Pydantic model. For the Groq integration used here, LangChain implements this through tool-style structured output and parses the result into the Pydantic model. Other providers may use a different strategy inside LangChain; the application still receives an `IncidentSummary` or an error.
+
+Semantic guarantees (required fields, list length, types) come from **validation after the model responds**, not from the model reliably obeying the schema. If validation fails, the exception is logged and the incident keeps `ai_summary = null`.
+
+The important boundary:
+
+```text
+LLM → IncidentSummary → deterministic formatter → incident-service
+```
+
+The LLM does not control the final storage format. `format_legacy_summary_text` owns the string incident-service PATCHes.
+
+---
+
+## Why this is not an agent
+
+There is no decision here about which tool to call next. All context incident-service needs is already in the POST body. The model transforms that context into a structured assessment; the application stores it.
+
+An agent loop would add extra model calls, latency, cost, and failure modes without new capability. LangGraph is justified when control flow, parallelism, persistence, or human interrupts are product requirements, not when a single structured call suffices.
+
+---
+
+## Observability below HTTP
+
+HTTP logs tell you that `/summaries` returned `202` or that a background task took 1.4s. They do not tell you whether the prompt included the right error lines, whether the model call or the parser dominated latency, or whether structured output failed silently.
+
+LLM applications need observability at the prompt, model, and parser level, not only at the route. **LangSmith** is the observability platform I use for LangChain traces (and later, evaluations). When tracing is on, LangChain exports nested **runs** without FastAPI calling LangSmith directly:
+
+- `LANGCHAIN_TRACING_V2=true`
+- `LANGCHAIN_API_KEY=...`
+- `LANGCHAIN_PROJECT=log0-ai-service`
+
+Settings load from `.env` into Pydantic; `configure_tracing()` mirrors them into `os.environ` because the LangSmith client reads the environment.
+
+After an E2E ingest creates an incident and incident-service triggers a summary, one successful path looks like:
+
+```text
+invoke (root)
+  └── ChatGroq (model)
+  └── PydanticToolsParser (structured output)
+```
+
+![LangSmith project view listing root runs for log0-ai-service, including a successful invoke run with truncated input and output, start time, and about 1.29s latency](/blog/assets/post14-langsmith-project-trace-list.png)
+
+![LangSmith trace waterfall for one summary invoke with ChatGroq and PydanticToolsParser children, plus Input and Output JSON for the root invoke run](/blog/assets/post14-langsmith-trace-waterfall-invoke-io.png)
+
+![LangSmith ChatGroq run detail showing system and human prompt markdown for a payment-service HIGH incident and the model's IncidentSummary-style response](/blog/assets/post14-langsmith-run-chatgroq-prompts.png)
+
+![LangSmith PydanticToolsParser run showing IncidentSummary tool arguments and parsed output fields for summary, possible cause, and recommended actions](/blog/assets/post14-langsmith-run-pydantic-structured-output.png)
+
+The nested runs help answer "where did the 1.4s go?" The prompt panes answer "did the incident context arrive intact?" That is the loop I use before adding tools or a graph.
+
+---
+
+## When a linear chain stops being enough
+
+**Investigate with AI** needs evidence from logs, incident history, repositories, and runbooks; conditional retrieval after triage; competing hypotheses; a bounded verify loop; human approval before proposed code changes; and state that survives restarts and reconnecting clients.
+
+That is where a linear chain stops being a good representation of the workflow. The product needs explicit state, branching, parallel I/O, persistence, and interrupts. LangGraph provides those primitives (`StateGraph`, reducers, `Send`, `interrupt()`, checkpoint storage keyed by investigation id).
+
+The planned workflow (not in production yet):
+
+![Planned LangGraph investigation workflow: load_context and triage, parallel gather nodes, synthesize and verify with a bounded re-gather loop, root_cause, human_review interrupt, propose and validate changes, finalize with persisted SSE events](/blog/charts/diag-ai-langgraph-workflow.svg)
+
+Shipping the summary first validates the incident callback, LLM configuration, tracing, and Docker integration before introducing the investigation workflow.
+
+| Concern       | Shipped today: auto summary | Planned: Investigate with AI     |
+| ------------- | --------------------------- | -------------------------------- |
+| Trigger       | Automatic on NEW incident   | User-initiated in console        |
+| Orchestration | LCEL linear pipeline        | LangGraph`StateGraph`          |
+| State         | Ephemeral request state     | Checkpointed investigation state |
+| Tools         | None                        | Logs, repo, runbooks, memory     |
+| Human gate    | None                        | Review before proposed changes   |
+| Streaming     | None                        | SSE from persisted events        |
+
+---
+
+## Takeaway
+
+Use **one LLM pipeline** when the job is a single model call with a known schema. Use **LangGraph** when control flow, parallelism, persistence, or human interrupts are part of the requirement, not an implementation detail.
+
+log0 maps that split in code: `app/summary/` for what ships today, `app/graph/` for the investigation workflow when it lands. [Post 11](/blog/ai-summary-async-callback-not-result) still applies: incident creation stays fast and durable; AI output remains additive.
+
+The goal is not to use more AI abstractions. It is to keep the probabilistic part of the system as small as the problem allows. For log0, that means a chain for summarization and a graph only when investigation actually requires stateful control flow.
+
+---
+
+### Try log0
+
+log0 is the platform this series is built on, an open, multi-tenant incident pipeline you can run yourself or use hosted.
+
+- Platform: [log0.in](https://log0.in/)
+- Docs: [log0.in/docs](https://log0.in/docs)
+- Console: [console.log0.in](https://console.log0.in/)
+- charfield, the ASCII animation registry behind the log0 front ends: [charfield.log0.in](https://charfield.log0.in/)
+
+Written by [Ashmit JaiSarita Gupta](https://ashmitjsg.vercel.app/). Find me on [LinkedIn](https://www.linkedin.com/in/ashmitjsg/), [GitHub](https://github.com/ashmitjsg), and [X](https://twitter.com/ashmitjsg), and read the rest of the series on [Hashnode](https://engineeringwithashmit.hashnode.dev/series/log0).
