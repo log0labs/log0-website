@@ -210,7 +210,16 @@ Minimum for local summaries (matches `.env.example` defaults):
 ```
 GROQ_API_KEY=gsk_your-actual-key-here
 INCIDENT_SERVICE_URL=http://localhost:8083
+INTERNAL_SERVICE_TOKEN=your-long-shared-secret
 ```
+
+**incident-service** must send the same token when it calls `POST /api/v1/summaries`. Create `services/incident-service/.env` the same way as notification-service (`Copy-Item .env.example .env`, then edit):
+
+```
+INTERNAL_SERVICE_TOKEN=your-long-shared-secret
+```
+
+Use the **identical** string in both `services/ai-service/.env` and `services/incident-service/.env`. Local runs: start incident-service with `./run.ps1` or `./run.sh` from that directory so the file is loaded. Docker Compose uses `env_file` on both **ai-service** and **incident-service**.
 
 Set API keys for any provider you reference in `LLM_*` (for example `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `HF_TOKEN`). In Docker, compose sets `INCIDENT_SERVICE_URL=http://incident-service:8083`.
 
