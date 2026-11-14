@@ -407,3 +407,257 @@ API key validation (ingestion path) remains **remote** - the Ingestion Gateway c
 - Zero latency overhead on the hot API path - no auth-service call per request
 - auth-service is not a runtime dependency of incident-service for reads
 - Horizontally scalable - each service instance validates independently with no shared state
+
+
+---
+
+## ADR-010: Python and LangGraph for the AI Service
+
+*Supersedes the "no framework" part of ADR-008. The summary path keeps its HTTP contract.*
+
+### Context
+
+ADR-008 gave the AI service a Strategy-pattern provider layer in Java, enough for one prompt in and one summary out. Investigating an incident is a different shape of work: gather evidence from several places in parallel, loop while the model wants more, stop for a human to review, resume after a restart, and never lose the run. That needs a stateful graph with checkpoints and a way to pause, which the Java ecosystem did not offer at the time.
+
+### Decision
+
+Rewrite the AI service in Python 3.13 with FastAPI and LangGraph 1.2, with a Postgres checkpointer. The `POST /api/v1/summaries` contract is byte-compatible, so incident-service changed nothing. Nodes stay thin: the decisions between them live in plain, tested functions (`graph/routing.py`), and the graph builder only wires them.
+
+### Alternatives Considered
+
+| Alternative | Why Rejected |
+|---|---|
+| **Stay in Java (Spring AI, LangChain4j)** | No equivalent of interrupt-and-resume with durable checkpoints; weaker tooling for evaluation. |
+| **A hand-written state machine** | Re-implements checkpointing, parallel fan-out and interrupts, the parts that are hardest to get right. |
+| **A multi-agent "swarm"** | Hard to bound in cost and time, and hard to evaluate. One graph with explicit budgets is easier to reason about. |
+
+### Consequences
+
+- The repository now has two languages; the AI service has its own Docker image and CI job (uv, ruff, pytest).
+- Every run has hard limits (tool calls, rounds, time) enforced in code, not requested from the model.
+- A run survives a restart: it resumes from its last checkpoint instead of starting again.
+
+---
+
+## ADR-011: Structured Changes, Deterministic Diff
+
+### Context
+
+When asked for a unified diff, language models often produce one that looks right and does not apply: wrong line numbers, mangled context, a missing newline marker. A fix the engineer cannot apply is worse than no fix.
+
+### Decision
+
+The model proposes **edits**: file, the exact old text, the new text. Code does the rest. It checks that the old text occurs exactly once (overlapping matches count), refuses a match that differs only in whitespace, builds the unified diff itself with `difflib`, and runs `git apply --check` in a private worktree of the pinned commit. Only a diff that passes is stored. A failed validation goes back to the model once or twice with the exact reasons, then the run gives up honestly.
+
+### Alternatives Considered
+
+| Alternative | Why Rejected |
+|---|---|
+| **Trust the model's unified diff** | Fails often enough to make the feature unusable. |
+| **Ask for whole files** | Costly, and silently rewrites code the model did not mean to touch. |
+
+### Consequences
+
+- A stored diff always applies cleanly to the commit the investigation read; a bad proposal never reaches the user.
+- Whitespace mismatches cost a retry. Diffs over 500 KB are refused.
+- The demo repository's own tests can be run against the diff in the evaluation (see ADR-017).
+
+---
+
+## ADR-012: A Local Clone and ripgrep, Not Code-Search APIs or Embeddings
+
+### Context
+
+The investigation has to read a customer's private code: find the file named in a stack trace, the commits that touched it, the line that fails.
+
+### Decision
+
+Keep a disposable partial clone per repository, pin the commit at the start of the investigation, and use `git` and `ripgrep` through bounded, read-only tools (list, search, read, recent commits, blame, show commit). The token is injected for the duration of one git command and never written to `.git/config`. Secret-looking files (`.env`, keys) and paths that climb out of the checkout are refused.
+
+### Alternatives Considered
+
+| Alternative | Why Rejected |
+|---|---|
+| **GitHub code-search API** | Default branch only, rate limited, no blame or history. |
+| **Embeddings over the repository** | Stale after every push, costly to build, and worse than exact search for debugging: a symbol name is a better key than a vector. |
+
+### Consequences
+
+- Deterministic, citable results: every cited line was really returned by a tool.
+- Disk use per connected repository; the cache is safe to delete.
+- Only GitHub is supported, with a personal access token (read-only is enough).
+
+---
+
+## ADR-013: pgvector in the Existing Postgres, with Plain SQL
+
+### Context
+
+Runbook search and long-term memory need nearest-neighbour search over embeddings, per tenant, on a host with no room for another service.
+
+### Decision
+
+Enable `pgvector` in the Postgres log0 already runs (the `pgvector/pgvector:pg16` image keeps the same data volume). Use plain SQL: a `vector(384)` column, an HNSW index with cosine distance, and the tenant filter written out in the query. MMR selection, relevance grading and query rewriting are code on top. The default embedder is a built-in hashing embedder that needs no model or network; a Hugging Face sentence-transformer is opt-in because runbook text then leaves the service.
+
+### Alternatives Considered
+
+| Alternative | Why Rejected |
+|---|---|
+| **A vector database (Chroma, Qdrant, Pinecone)** | Another service to run and secure, with its own tenancy model. |
+| **`langchain-postgres` or LangGraph `PostgresStore`** | Hides the parts that matter most here (the tenant filter, the model filter, the transaction that replaces a runbook) and adds table layouts we do not control. |
+
+### Consequences
+
+- One database to back up; tenant isolation is a `WHERE` clause with tests, and a mutation check proves the tests notice its removal.
+- The embedding size is part of the column type; another model size needs a migration.
+- With the default embedder, matching is by shared words, not meaning.
+
+---
+
+## ADR-014: A Persisted Event Log Behind the Stream
+
+### Context
+
+An investigation takes minutes. The console must show progress, survive a dropped connection, and show the same history to someone who opens the page later.
+
+### Decision
+
+Every step writes an event (sequence number, type, small payload) to `ai.investigation_event`. The stream endpoint reads that log and sends Server-Sent Events with the sequence number as the event id; a reconnecting client sends `Last-Event-ID` and receives exactly what it missed. The console reads the stream with `fetch`, not `EventSource` (which cannot send an Authorization header), and falls back to polling `/events?after=` when streaming does not work. Events carry facts and one-line summaries, never prompts or raw log content.
+
+### Alternatives Considered
+
+| Alternative | Why Rejected |
+|---|---|
+| **WebSockets** | Bidirectional is not needed, and it is harder through the Vercel proxy. |
+| **In-memory progress** | Lost on restart, invisible to a second viewer. |
+
+### Consequences
+
+- The history of a finished run is the same log the live view used.
+- Waiting for a human review is not an end of stream: the run stays open across disconnects.
+- Streaming through a proxy that buffers degrades to polling instead of failing.
+
+---
+
+## ADR-015: The Model Proposes, Code Decides
+
+### Context
+
+Language models are fluent and sometimes wrong, and an incident report that cites evidence that does not exist, or states a confidence nobody earned, is worse than none.
+
+### Decision
+
+Every claim is checked by code before it counts. A root cause may cite only evidence ids that exist in this run. A hypothesis is "supported" only when the cited evidence exists, and only a supported one can raise the confidence band, which comes from a deterministic rule (for example, two independent kinds of evidence), not from the model's own number. A file or commit may be cited only if a tool returned it. Every language-model step has a deterministic fallback: if triage fails the plan searches every allowed source; if a step cannot conclude, the run records a gap ("what we could not find out") instead of guessing. The model's own confidence is logged for calibration and never shown.
+
+### Alternatives Considered
+
+| Alternative | Why Rejected |
+|---|---|
+| **Show the model's confidence** | Not calibrated, and it reads as authority. |
+| **Let the model self-verify only** | The same failure mode checks itself. |
+
+### Consequences
+
+- Some correct answers are downgraded or dropped when the evidence behind them cannot be shown. That is intended.
+- Gaps are part of the product: the report says what was not examined.
+
+---
+
+## ADR-016: Redact at the Door, and Trace Only With Consent
+
+### Context
+
+Logs, stack traces, code and runbooks contain things nobody meant to send to a model vendor: keys, passwords in connection strings, customers' e-mail addresses. A trace sent to a monitoring service is a second copy.
+
+### Decision
+
+Redaction happens where text enters the investigation, not where it is printed. Every piece of evidence is redacted when it is created (one validator on the `Evidence` type, so no node or tool can skip it); the incident's messages are redacted where they are read; tool output a model reads is redacted while the exact result is kept for grounding; the question, stored memories and everything returned over MCP are redacted too. Matches become `[REDACTED:kind]`, and an event says how many values of which kinds were hidden, never what they were. Tracing (LangSmith) follows consent: tenants that brought their own LLM key are traced only if they opted in; tenants on the platform's keys are traced when tracing is on.
+
+### Alternatives Considered
+
+| Alternative | Why Rejected |
+|---|---|
+| **Redact in the prompt builders** | One forgotten builder leaks. |
+| **Trust the provider's retention terms** | Not a control we own. |
+
+### Consequences
+
+- The model sees markers, so it knows something was there.
+- Redaction is pattern based: a password written in prose is not caught. It is one layer beside tenant scoping, read-only tools and refusing secret files, not a guarantee.
+- A secret already in the repository can still appear in a diff's context lines; the evaluation judges only what the system adds.
+
+---
+
+## ADR-017: Evaluate on Recorded Incidents, Planted Bugs and a Scripted Self-Test
+
+### Context
+
+"It seems to work" is not evidence, and an evaluation that needs a running stack cannot gate a pull request. Real customer incidents cannot be shared or reproduced.
+
+### Decision
+
+Build the evidence ourselves. A demo shop in three languages (Node, Go, Rust) has eight planted bugs, one commit each, plus an isolated branch per bug so a case has exactly one cause; its answer key (`bugs.yml`) is checked against git by a script. Each case's incident and the exact rows the tools read are **recorded** from a real run of log0's own pipeline, then replayed through fixture backends, so the production nodes run unchanged and offline. Evaluators are deterministic where possible (localization, grounding, fix pattern, diff validity, safety, tests passing with the fix applied) with an optional model judge for the root cause. A **scripted model** answers perfectly, wrongly or hostilely so the harness itself can be tested: it proves the evaluators score a perfect run as perfect and a bad one as bad. A committed baseline gates regressions; real-model runs are manual and nightly, never on pull requests.
+
+### Alternatives Considered
+
+| Alternative | Why Rejected |
+|---|---|
+| **Hand-written fixtures** | They encode what we expect rather than what the pipeline produces. |
+| **Judge only with a model** | Slow, costly, and itself unmeasured. |
+| **Evaluate only on a live stack** | Cannot run in CI. |
+
+### Consequences
+
+- The harness found real defects before any model was involved (Rust dependency frames counted as application code, a redaction hole for tokens with underscores, no fix ever proposed by default). Those are fixed and tested.
+- Numbers from the scripted model test the harness, not log0's quality. Quality numbers need a real-model run, which sends the synthetic logs and the demo code to the provider.
+- Eight bugs and one canary is a small set: it is a regression gate and a comparison tool, not a benchmark.
+
+---
+
+## ADR-018: MCP Is an Adapter Over the Same Tools
+
+### Context
+
+Engineers already work in Claude Desktop and Cursor. log0's tools are useful there, but a second implementation would drift from the one the investigation uses.
+
+### Decision
+
+An MCP server exposes ten read-only tools that call the same functions as the graph. The tenant is never a tool argument: it comes from the verified token (per request over HTTP, once for a stdio session, with the token's expiry checked on every call). The HTTP endpoint is stateless, so one client's identity cannot leak into another's, and is off unless enabled. Expected failures become short safe messages; unexpected ones become a generic message with the real cause only in the server log. Results are redacted like everything else.
+
+### Alternatives Considered
+
+| Alternative | Why Rejected |
+|---|---|
+| **MCP as the internal architecture** | Couples the graph to a protocol it does not need. |
+| **Tenant as an argument** | A client could ask about another tenant. |
+
+### Consequences
+
+- A fix to a tool benefits the investigation and MCP at once.
+- A stdio token is a secret with the reach of its tenant; it expires and is not refreshed.
+
+---
+
+## ADR-019: With the Review Gate Off, a Root Cause Is Approved
+
+*Found by the evaluation harness; recorded because it changed a default.*
+
+### Context
+
+The review gate pauses an investigation after the root cause so an engineer can approve, refine or stop. It is off by default. With the gate off the graph ended at the root cause: the review decision is what routes to the step that proposes a fix, so a default deployment never produced a diff, and the demo guide said it did.
+
+### Decision
+
+Gate off means "no human in the loop", which means approved: a root cause is approved automatically when the server can read code, and a fix is proposed. A server with no code access still ends at the root cause, silently, as before. Turning the gate on restores the pause.
+
+### Alternatives Considered
+
+| Alternative | Why Rejected |
+|---|---|
+| **Turn the gate on by default** | A waiting investigation blocks a new one for the same incident until someone answers; not a safe default. |
+| **Document that diffs need the gate** | The feature would look broken out of the box. |
+
+### Consequences
+
+- Every investigation with a mapped repository now spends the extra tool calls and model turns of a fix proposal.
+- A proposal is never applied: it is a validated diff to read, copy or download.

@@ -9,6 +9,19 @@ Entries are newest-first and tagged by component: **[services]**, **[console]**,
 
 ---
 
+## 2026-11 - AI investigations
+
+- **[services]** **Investigations**: a LangGraph pipeline gathers evidence from logs, incident history, code (git and ripgrep) and runbooks, checks hypotheses against it, and states a root cause that cites real evidence. Every run has hard limits and ends in a report, with gaps stated rather than guessed.
+- **[services]** **Fixes as validated diffs**: the model proposes exact edits, code builds the unified diff and checks `git apply --check` against the pinned commit. Optional human **review gate** (approve, refine, stop).
+- **[services]** **Runbook search** (pgvector, MMR, relevance grading, one query rewrite) and **long-term memory** with feedback; Postgres now runs the `pgvector/pgvector:pg16` image on the same volume.
+- **[services]** **MCP server**: ten read-only tools over stdio or a bearer-protected `/mcp`, tenant from the token.
+- **[services]** **Redaction** of secrets and personal data before text reaches a model, and a tracing policy for bring-your-own-key tenants.
+- **[services]** **Evaluation harness**: a three-language demo shop with eight planted bugs, recorded incident fixtures, deterministic evaluators, a scripted self-test, a regression baseline and a GitHub workflow. It found and fixed three defects in log0 (Rust dependency frames counted as application code, a redaction hole, no fix proposed by default).
+- **[console]** Investigation panel on the incident page (start, live timeline, review gate, result, diff viewer), and Settings pages for AI and repositories.
+- **[deploy]** The AI service is reachable through the tunnel as `ai.log0.in`.
+
+---
+
 ## 2026-09 - ai-service rewrite (Python)
 
 - **[services]** Replaced Java **ai-service** with **Python 3.13 / FastAPI**: same HTTP contract (`POST /api/v1/summaries` → `202`, `PATCH .../ai-summary`), port **8085**, camelCase JSON.
