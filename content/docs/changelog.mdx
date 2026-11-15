@@ -12,6 +12,7 @@ Entries are newest-first and tagged by component: **[services]**, **[console]**,
 ## 2026-11 - Draft pull requests
 
 - **[services]** **ai-service**: per-workspace pull request rules (require passing checks, stricter size and rate limits; the server's limits are ceilings), and pull request state sync: merged, closed and reopened on GitHub are recorded and shown in the investigation (subscribe the GitHub App to the Pull request event).
+- **[services]** **ai-service**: **repair after failing checks**: when the repository's own CI fails, log0 reads the failed job logs and commits one corrected change on the same branch (only files of the approved change, validated like the first), then reports the second run. Needs *Actions: read* on the App.
 - **[services]** **ai-service**: an optional, off-by-default **test sandbox** for repositories without CI: hardened container (no network while tests run, read-only root, dropped capabilities, resource limits, timeout), a dependency step that runs no repository code, fixed commands per toolchain, two-level opt-in (server and workspace), and a pull request that says the tests ran in the sandbox, not in the customer's CI.
 - **[console]** Pull request rules card on Settings, Repositories; the pull request card shows merged or closed; CI now runs the unit tests.
 
