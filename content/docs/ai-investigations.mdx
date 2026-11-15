@@ -35,11 +35,13 @@ You need to be an **admin** for these:
 
 | Step | Where | What |
 |---|---|---|
-| Choose models | Settings, AI | Provider, model and (optionally) your own API key per kind of work. **Test connection** checks a key without saving it. Keys are stored encrypted and never shown again. |
+| Choose models | Settings, AI | Provider, model and (optionally) your own API key per kind of work. **Test connection** checks a key without saving it. Keys are stored encrypted and never shown again. A saved choice drives your workspace's investigations; anything you leave unset uses the platform's model. |
 | Connect code | Settings, Repositories | A GitHub repository and a read-only token, then map each **service name** to its repository and folder. |
-| Add runbooks | `POST /api/v1/runbooks` | Markdown runbooks; investigations search them. Uploading the same title replaces it. |
+| Add runbooks | Settings, Runbooks | Markdown, plain text, PDF or Word files (up to 5 MB). Investigations search them. The same title replaces the old one. Click a runbook to read it (rendered or raw, PDF as a PDF), download the original, or delete it. |
 
 ## Use it
+
+The incident list has an **AI** column: not investigated, running, needs review, done (with `+fix` when a validated diff is ready) or failed.
 
 Open an incident and press **Investigate**. Choose which sources it may use (logs, history, code, runbooks, docs) and optionally ask a question.
 
@@ -48,6 +50,7 @@ Open an incident and press **Investigate**. Choose which sources it may use (log
 - **Root cause** shows a confidence band (high, medium, low) from a deterministic rule, the evidence it cites, what is still unknown, and what was ruled out.
 - **Proposed change** is a unified diff that passed validation and `git apply --check` against the exact commit the investigation read. Copy it or download it as a `.patch`.
 - **Review gate** (optional, off by default): the run pauses after the root cause. You approve, **refine** with a hint (it looks again), or stop. With the gate off, a root cause is approved automatically when your code is connected.
+- **Code is searched whenever it is enabled**, even for an incident with no stack trace (a retry storm, a failing dependency), unless the cause is plainly configuration, such as a rotated key. Such a run may end without a diff on purpose: the answer is then "this is not a code change".
 - **Sensitive values hidden** appears in the timeline when keys, passwords or e-mail addresses were found in the evidence and removed before the model saw them.
 
 After a run you can mark the result helpful, partly helpful or wrong (`POST /api/v1/investigations/{id}/feedback`). Wrong results are never recalled in later investigations; helpful ones rank higher.
@@ -83,6 +86,6 @@ On every pull request the evaluation harness tests itself. Real-model runs happe
 
 - GitHub only, with a personal access token. No branches or pull requests are created.
 - The default runbook embedder matches shared words, not meaning; set `EMBEDDING_PROVIDER=huggingface` for semantic search (runbook text then goes to Hugging Face).
-- Saved AI settings are stored and testable per workspace; runs use the platform models until the per-workspace model selection is wired into the investigation.
+- Investigations need a model that can call tools and return structured JSON. Free tiers work but are slow and capped: on Gemini's free tier the Flash Lite model allows about 15 requests a minute and 500 a day (roughly 25 investigations a day), and the service waits out short per-minute limits instead of failing. Free-tier prompts may be used by the provider to improve its products, so use only synthetic data there.
 - Eight planted bugs and one injection case are a regression gate, not a benchmark.
-- **What has been measured:** with no model at all, the stack trace led to the right file in 6 of 6 applicable cases (Node, Go, Rust), and runbook retrieval with the built-in lexical embedder scored precision 0.71 and recall 0.86 on seven labelled queries. A first run on real models (Groq `gpt-oss`, free tier) was **incomplete and is not a baseline**: three of nine root causes were judged correct, but the provider rejected some of the model's tool calls and the daily token cap was reached, so no fix was produced in that run. The evaluation now marks such cases as degraded and excludes them instead of scoring them. A complete run needs a provider tier with enough daily quota; results will be published here when one exists.
+- **What has been measured** (the first complete run, one model, nine cases, Gemini 3.5 Flash Lite on its free tier): the root cause was judged correct in 7 of 9 cases; the right file was named first in 6 of 8 code-cause cases; the diff applied and showed the expected change in 6 of 8, and the service's own tests passed with it in 5 of 8. With no model at all, the stack trace led to the right file in 5 of 5 cases. A rotated-key case correctly produced no fix, the planted prompt injection was not obeyed, and no secret appeared in any answer. Two cases (a lower-case SKU lookup and a lock held across a slow write) were missed entirely, and confidence is only weakly calibrated. With nine cases and one run, one case moves a number by 11 points and the judge is the same model family as the investigator: read these as a baseline, not a benchmark.

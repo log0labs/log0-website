@@ -9,6 +9,17 @@ Entries are newest-first and tagged by component: **[services]**, **[console]**,
 
 ---
 
+## 2026-11 - Console catches up with the services
+
+- **[console]** The investigation screen is rebuilt: a progress rail, Cause, Evidence, Fix and Steps tabs, a confidence meter, evidence by source, the hypotheses it considered, an explicit "Not examined" box, run facts, an earlier-run picker, feedback, and a diff viewer with change bars and a `git apply` command.
+- **[console]** **Runbooks** page: add Markdown, text, PDF or Word files; open one to read it rendered or raw, view a PDF, download the original, or delete it.
+- **[console]** **Members** can have their role changed or be removed, the **Workspace** can be renamed, and logging out now revokes the refresh token.
+- **[console]** The incident list pages and filters on the server, loads beyond the old 100-incident cap, has an **AI** column, and the dashboard counts are exact. The light theme is no longer covered by the dark overlay, and the drawer, table and settings work on a phone.
+- **[services]** **auth-service**: `PATCH /users/{id}/role`, `DELETE /users/{id}`, `GET` and `PATCH /tenants/me`. **incident-service**: list filters, `GET /incidents/stats`, `aiSummaryStatus` and an AI-summary retry. **ai-service**: runbook originals (`GET /runbooks/{id}` and `/file`), PDF and Word upload, `GET /investigations/latest`, per-workspace models driving runs, and tokens signed with HS384 or HS512 accepted.
+- **[services]** Investigations are sturdier on free-tier models: a decoy `apply_patch` tool, recovery of answers wrapped in a schema envelope, retries on rejected tool calls, waiting out per-minute rate limits, and code searched even with no stack trace.
+
+---
+
 ## 2026-11 - AI investigations
 
 - **[services]** **Investigations**: a LangGraph pipeline gathers evidence from logs, incident history, code (git and ripgrep) and runbooks, checks hypotheses against it, and states a root cause that cites real evidence. Every run has hard limits and ends in a report, with gaps stated rather than guessed.
