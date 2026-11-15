@@ -62,6 +62,16 @@ log0 ships an MCP server with ten read-only tools: the incident, its error timel
 - **Local (stdio):** make a token with `scripts/mcp_token.py`, put it in the client's configuration, and start `python -m app.mcp.stdio`.
 - **Remote:** set `MCP_HTTP_ENABLED=true` and connect to `/mcp` with a bearer token.
 
+## Draft pull requests
+
+After a fix is validated, an engineer can let log0 open it as a **draft pull request**. log0 never merges, never pushes to the default branch and never deploys.
+
+1. **Approve.** The run parks at a second gate that shows the repository, the branch (`log0/fix-<incident>-<investigation>`) and every file with its changed lines. Only an admin or engineer of the workspace can answer.
+2. **Write.** With a GitHub App installation narrowed to that one repository (one-hour token, contents and pull-request write only), log0 creates the branch from the pinned commit, commits the change and opens the draft. The committed text is rebuilt from the validated change and must equal the reviewed diff exactly, or nothing is written. Repeating any step (a retry, a restart) returns the branch, commit or pull request that already exists.
+3. **Check.** log0 does not run your code. It waits for the repository's own CI on the commit (up to ten minutes) and puts the result in the pull request: passed, failed, still running, or "no checks, nothing verified this change". A failed run is labelled, not hidden; a server setting can stop failing changes from being opened at all.
+
+What log0 refuses regardless: files under `.github`, pipelines, ownership files, lock files and anything that looks like a key or `.env`; changes over 10 files or 400 changed lines; more than 3 pull requests per repository or 10 per workspace in an hour. Every write is recorded in an audit log (`GET /api/v1/github/audit`, admins). Writing is off by default: it needs the GitHub App, `PR_WRITES_ENABLED=true`, an installation linked to the workspace, and the **Draft PRs** switch on each repository. An operator can switch off one workspace without touching the others.
+
 ## Safety
 
 | Concern | What log0 does |
@@ -84,7 +94,7 @@ On every pull request the evaluation harness tests itself. Real-model runs happe
 
 ## Limits
 
-- GitHub only, with a personal access token. No branches or pull requests are created.
+- GitHub only. Reading code uses a read-only token; opening draft pull requests uses the GitHub App and is off until an admin installs it. log0 does not run tests itself: it reports the repository's own CI, and a repository without CI gets a pull request that says nothing verified the change.
 - The default runbook embedder matches shared words, not meaning; set `EMBEDDING_PROVIDER=huggingface` for semantic search (runbook text then goes to Hugging Face).
 - Investigations need a model that can call tools and return structured JSON. Free tiers work but are slow and capped: on Gemini's free tier the Flash Lite model allows about 15 requests a minute and 500 a day (roughly 25 investigations a day), and the service waits out short per-minute limits instead of failing. Free-tier prompts may be used by the provider to improve its products, so use only synthetic data there.
 - Eight planted bugs and one injection case are a regression gate, not a benchmark.

@@ -9,6 +9,13 @@ Entries are newest-first and tagged by component: **[services]**, **[console]**,
 
 ---
 
+## 2026-11 - Draft pull requests
+
+- **[services]** **ai-service**: after an approved diff, a second human approval opens a **draft pull request** through a GitHub App (branch from the pinned commit, one commit rebuilt from the validated change, never the default branch). The run waits for the repository's own CI and reports it on the pull request. Protected files, size and rate limits, an audit log, and global, per-workspace and per-repository kill switches. Webhooks keep installations honest.
+- **[console]** Approve or decline the pull request from the investigation, follow branch, commit and checks, and open the link. **Settings, Repositories** gets a GitHub App card and a Draft PRs switch per repository; the incident list shows `+PR`.
+
+---
+
 ## 2026-11 - Console catches up with the services
 
 - **[console]** The investigation screen is rebuilt: a progress rail, Cause, Evidence, Fix and Steps tabs, a confidence meter, evidence by source, the hypotheses it considered, an explicit "Not examined" box, run facts, an earlier-run picker, feedback, and a diff viewer with change bars and a `git apply` command.
