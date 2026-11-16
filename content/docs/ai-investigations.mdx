@@ -64,7 +64,7 @@ log0 ships an MCP server with ten read-only tools: the incident, its error timel
 
 ## Draft pull requests
 
-After a fix is validated, an engineer can let log0 open it as a **draft pull request**. log0 never merges, never pushes to the default branch and never deploys.
+After a fix is validated, an engineer can let log0 open it as a **draft pull request**. log0 never merges and never pushes to the default branch. Deploying a merged fix is a separate, opt-in step: see [Controlled Deploys](/docs/deploys).
 
 1. **Approve.** The run parks at a second gate that shows the repository, the branch (`log0/fix-<incident>-<investigation>`) and every file with its changed lines. Only an admin or engineer of the workspace can answer.
 2. **Write.** With a GitHub App installation narrowed to that one repository (one-hour token, contents and pull-request write only), log0 creates the branch from the pinned commit, commits the change and opens the draft. The committed text is rebuilt from the validated change and must equal the reviewed diff exactly, or nothing is written. Repeating any step (a retry, a restart) returns the branch, commit or pull request that already exists.

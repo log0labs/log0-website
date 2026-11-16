@@ -9,6 +9,16 @@ Entries are newest-first and tagged by component: **[services]**, **[console]**,
 
 ---
 
+## 2026-11 - Controlled deploys
+
+- **[services]** **ai-service**: after a log0 pull request is merged, log0 can **deploy it through your own pipeline**, watch your logs, and say whether the error went away. A merge only creates an offer per environment; a person starts it, then approves it (an admin for production). log0 starts a `workflow_dispatch` with three fixed inputs (commit, environment, correlation id) and holds no cloud credentials. See [Controlled Deploys](/docs/deploys).
+- **[services]** **ai-service**: a verdict made of counting, not a model: healthy, degraded or unclear, from the error rate against the half hour before, new errors, and a traffic floor ("silence" is never healthy). A degraded or unclear result asks a person: keep, watch longer (twice at most), or **roll back** to the commit that ran before (once, then judged for recovery).
+- **[services]** **ai-service**: one active deploy per repository and environment, freeze windows, an hourly limit, migrations are not eligible, kill switches (server, workspace, environment, which also stop a rollback), and an append-only audit (`GET /api/v1/remediations/audit`, admins) that the database itself refuses to change.
+- **[console]** A deploy card per environment under the pull request (offer, approval, live status, before and now, the decision), a **Deploys** card on Settings, Repositories (workflow, environments, approvers, soak, thresholds, freeze windows), and a *deployed*, *rolled back* or *deploy failed* mark in the incident list.
+- The GitHub App needs two more permissions for this (*Actions: write*, *Deployments: write*); each installation approves them once. Deploys are off until an operator sets `DEPLOYS_ENABLED=true`.
+
+---
+
 ## 2026-11 - Draft pull requests
 
 - **[services]** **ai-service**: per-workspace pull request rules (require passing checks, stricter size and rate limits; the server's limits are ceilings), and pull request state sync: merged, closed and reopened on GitHub are recorded and shown in the investigation (subscribe the GitHub App to the Pull request event).
