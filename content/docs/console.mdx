@@ -1,0 +1,39 @@
+---
+title: Console
+description: What each page of the log0 console does - incidents, the AI summary and investigation, and the settings pages for members, API keys, AI models, repositories and runbooks.
+---
+
+## Incidents
+
+The list filters and pages **on the server** (severity, status, environment, service name), so a workspace with thousands of incidents is fully reachable. Exact counts for the dashboard come from `GET /api/v1/incidents/stats`, counted in the database. The **AI** column shows what the investigation did about each incident.
+
+Open an incident for its details. On a phone the panel is full screen.
+
+## The AI summary
+
+Every new incident gets a short AI summary. It has three states, shown honestly:
+
+| State | What you see |
+|---|---|
+| Ready | The summary text. |
+| Generating | A skeleton, for at most three minutes after it was requested. |
+| Unavailable | "No summary. The model did not answer." with **Try again** for admins and engineers (`POST /api/v1/incidents/{id}/ai-summary/retry`). |
+
+The API returns this as `aiSummaryStatus` (`READY`, `PENDING`, `UNAVAILABLE`). A retry does nothing when a summary exists or one is already on its way.
+
+## Investigation
+
+See [AI investigations](/docs/ai-investigations). The screen shows a progress rail, then tabs: **Cause**, **Evidence**, **Fix** and **Steps**, with feedback buttons, the run's model, time, tokens and cost, and a picker for earlier runs.
+
+## Settings (admins)
+
+| Page | What it does |
+|---|---|
+| Workspace | Shows and renames the workspace (the slug never changes), and copies the tenant id and ingestion endpoint. |
+| Members | Add a member, change a role (admin, engineer, viewer) or remove a member. You cannot change or remove yourself, and the last admin cannot be demoted or removed. A role change signs that person out of other devices so it takes effect. |
+| API keys | Create and revoke ingestion keys; a key is shown once. |
+| AI | Model, key, temperature and token limit per kind of work. |
+| Repositories | Connect a GitHub repository, map services to folders, install the GitHub App and switch **Draft PRs** on per repository. |
+| Runbooks | Add, read, download and delete runbooks. |
+
+Logging out revokes your refresh token on the server, not only the browser cookie.

@@ -357,6 +357,8 @@ function useSubmissionStorage<Result>(
     if (item === null) return;
     const validated = validateCallback(JSON.parse(item));
 
+    // Reading localStorage can only happen after mount (the server has none), so state is set from an effect here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (validated !== null) setValue(validated);
   }, [storageKey]);
 

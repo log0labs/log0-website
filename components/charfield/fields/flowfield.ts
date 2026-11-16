@@ -18,6 +18,6 @@ export const flowfield: FieldFn = (cx, cy, t, { speed }) => {
     Math.sin(x * 1.3) * Math.cos(y * 1.1) +
     0.5 * Math.sin(x * 2.6 + y * 1.7) +
     0.25 * Math.cos(x * 4.1 - y * 3.3);
-  let bri = (v / 1.75) * 0.5 + 0.5;
+  const bri = (v / 1.75) * 0.5 + 0.5;
   return Math.pow(Math.max(0, bri), 1.4);
 };

@@ -3,6 +3,9 @@
   "pages": [
     "index",
     "architecture",
+    "ai-investigations",
+    "deploys",
+    "console",
     "local-development",
     "deployment",
     "roadmap",

@@ -9,6 +9,52 @@ Entries are newest-first and tagged by component: **[services]**, **[console]**,
 
 ---
 
+## 2026-11 - Controlled deploys
+
+- **[services]** **ai-service**: after a log0 pull request is merged, log0 can **deploy it through your own pipeline**, watch your logs, and say whether the error went away. A merge only creates an offer per environment; a person starts it, then approves it (an admin for production). log0 starts a `workflow_dispatch` with three fixed inputs (commit, environment, correlation id) and holds no cloud credentials. See [Controlled Deploys](/docs/deploys).
+- **[services]** **ai-service**: a verdict made of counting, not a model: healthy, degraded or unclear, from the error rate against the half hour before, new errors, and a traffic floor ("silence" is never healthy). A degraded or unclear result asks a person: keep, watch longer (twice at most), or **roll back** to the commit that ran before (once, then judged for recovery).
+- **[services]** **ai-service**: one active deploy per repository and environment, freeze windows, an hourly limit, migrations are not eligible, kill switches (server, workspace, environment, which also stop a rollback), and an append-only audit (`GET /api/v1/remediations/audit`, admins) that the database itself refuses to change.
+- **[console]** A deploy card per environment under the pull request (offer, approval, live status, before and now, the decision), a **Deploys** card on Settings, Repositories (workflow, environments, approvers, soak, thresholds, freeze windows), and a *deployed*, *rolled back* or *deploy failed* mark in the incident list.
+- The GitHub App needs two more permissions for this (*Actions: write*, *Deployments: write*); each installation approves them once. Deploys are off until an operator sets `DEPLOYS_ENABLED=true`.
+
+---
+
+## 2026-11 - Draft pull requests
+
+- **[services]** **ai-service**: per-workspace pull request rules (require passing checks, stricter size and rate limits; the server's limits are ceilings), and pull request state sync: merged, closed and reopened on GitHub are recorded and shown in the investigation (subscribe the GitHub App to the Pull request event).
+- **[services]** **ai-service**: **repair after failing checks**: when the repository's own CI fails, log0 reads the failed job logs and commits one corrected change on the same branch (only files of the approved change, validated like the first), then reports the second run. Needs *Actions: read* on the App.
+- **[services]** **ai-service**: an optional, off-by-default **test sandbox** for repositories without CI: hardened container (no network while tests run, read-only root, dropped capabilities, resource limits, timeout), a dependency step that runs no repository code, fixed commands per toolchain, two-level opt-in (server and workspace), and a pull request that says the tests ran in the sandbox, not in the customer's CI.
+- **[console]** Pull request rules card on Settings, Repositories; the pull request card shows merged or closed; CI now runs the unit tests.
+
+- **[services]** **ai-service**: after an approved diff, a second human approval opens a **draft pull request** through a GitHub App (branch from the pinned commit, one commit rebuilt from the validated change, never the default branch). The run waits for the repository's own CI and reports it on the pull request. Protected files, size and rate limits, an audit log, and global, per-workspace and per-repository kill switches. Webhooks keep installations honest.
+- **[console]** Approve or decline the pull request from the investigation, follow branch, commit and checks, and open the link. **Settings, Repositories** gets a GitHub App card and a Draft PRs switch per repository; the incident list shows `+PR`.
+
+---
+
+## 2026-11 - Console catches up with the services
+
+- **[console]** The investigation screen is rebuilt: a progress rail, Cause, Evidence, Fix and Steps tabs, a confidence meter, evidence by source, the hypotheses it considered, an explicit "Not examined" box, run facts, an earlier-run picker, feedback, and a diff viewer with change bars and a `git apply` command.
+- **[console]** **Runbooks** page: add Markdown, text, PDF or Word files; open one to read it rendered or raw, view a PDF, download the original, or delete it.
+- **[console]** **Members** can have their role changed or be removed, the **Workspace** can be renamed, and logging out now revokes the refresh token.
+- **[console]** The incident list pages and filters on the server, loads beyond the old 100-incident cap, has an **AI** column, and the dashboard counts are exact. The light theme is no longer covered by the dark overlay, and the drawer, table and settings work on a phone.
+- **[services]** **auth-service**: `PATCH /users/{id}/role`, `DELETE /users/{id}`, `GET` and `PATCH /tenants/me`. **incident-service**: list filters, `GET /incidents/stats`, `aiSummaryStatus` and an AI-summary retry. **ai-service**: runbook originals (`GET /runbooks/{id}` and `/file`), PDF and Word upload, `GET /investigations/latest`, per-workspace models driving runs, and tokens signed with HS384 or HS512 accepted.
+- **[services]** Investigations are sturdier on free-tier models: a decoy `apply_patch` tool, recovery of answers wrapped in a schema envelope, retries on rejected tool calls, waiting out per-minute rate limits, and code searched even with no stack trace.
+
+---
+
+## 2026-11 - AI investigations
+
+- **[services]** **Investigations**: a LangGraph pipeline gathers evidence from logs, incident history, code (git and ripgrep) and runbooks, checks hypotheses against it, and states a root cause that cites real evidence. Every run has hard limits and ends in a report, with gaps stated rather than guessed.
+- **[services]** **Fixes as validated diffs**: the model proposes exact edits, code builds the unified diff and checks `git apply --check` against the pinned commit. Optional human **review gate** (approve, refine, stop).
+- **[services]** **Runbook search** (pgvector, MMR, relevance grading, one query rewrite) and **long-term memory** with feedback; Postgres now runs the `pgvector/pgvector:pg16` image on the same volume.
+- **[services]** **MCP server**: ten read-only tools over stdio or a bearer-protected `/mcp`, tenant from the token.
+- **[services]** **Redaction** of secrets and personal data before text reaches a model, and a tracing policy for bring-your-own-key tenants.
+- **[services]** **Evaluation harness**: a three-language demo shop with eight planted bugs, recorded incident fixtures, deterministic evaluators, a scripted self-test, a regression baseline and a GitHub workflow. It found and fixed three defects in log0 (Rust dependency frames counted as application code, a redaction hole, no fix proposed by default).
+- **[console]** Investigation panel on the incident page (start, live timeline, review gate, result, diff viewer), and Settings pages for AI and repositories.
+- **[deploy]** The AI service is reachable through the tunnel as `ai.log0.in`.
+
+---
+
 ## 2026-09 - ai-service rewrite (Python)
 
 - **[services]** Replaced Java **ai-service** with **Python 3.13 / FastAPI**: same HTTP contract (`POST /api/v1/summaries` → `202`, `PATCH .../ai-summary`), port **8085**, camelCase JSON.
