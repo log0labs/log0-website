@@ -1,18 +1,20 @@
 "use client";
 
-import { use, useEffect, useId, useRef, useState } from "react";
+import { use, useEffect, useId, useRef, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import type SvgPanZoom from "svg-pan-zoom";
 import ZoomInIcon from "@/components/icons/ZoomIn";
 import ZoomOutIcon from "@/components/icons/ZoomOut";
 import ZoomResetIcon from "@/components/icons/ZoomReset";
 
-export function Mermaid({ chart }: { chart: string }) {
-  const [mounted, setMounted] = useState(false);
+const subscribeNever = () => () => {};
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+export function Mermaid({ chart }: { chart: string }) {
+  const mounted = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false
+  );
 
   if (!mounted) return;
   return <MermaidContent chart={chart} />;

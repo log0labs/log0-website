@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Btn, Mark } from "./ui";
 import { links } from "@/lib/links";
@@ -18,9 +19,9 @@ export default function Nav() {
   return (
     <header className="sticky top-0 z-50 border-b border-black/10 bg-[#f4f1ea]/90 backdrop-blur-md">
       <div className="flex items-center justify-between px-6 py-4 sm:px-10">
-        <a href="/" aria-label="log0 home">
+        <Link href="/" aria-label="log0 home">
           <Mark />
-        </a>
+        </Link>
 
         <nav className="hidden items-center gap-8 lg:flex">
           {NAV.map((label) => (
