@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored, minified static assets (the AsyncAPI viewer): not our source.
+    "public/**",
   ]),
 ]);
 
